@@ -1,3 +1,5 @@
+import { UserButton } from "@clerk/nextjs"
+import { auth } from "@clerk/nextjs/server"
 import Image from "next/image"
 
 import {
@@ -8,7 +10,9 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 
-export default function Page() {
+export default async function Page() {
+  await auth.protect()
+
   return (
     <div className="flex min-h-svh">
       <Empty>
@@ -24,6 +28,7 @@ export default function Page() {
             own words. If you can describe it, you can play it.
           </EmptyDescription>
         </EmptyHeader>
+        <UserButton />
       </Empty>
     </div>
   )
