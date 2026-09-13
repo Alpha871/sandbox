@@ -1,20 +1,8 @@
 "use client"
 
-import {
-  ArrowUpIcon,
-  CarIcon,
-  ChevronDownIcon,
-  CrosshairIcon,
-  Gamepad2Icon,
-  GripIcon,
-  PickaxeIcon,
-  PlaneIcon,
-  SwordsIcon,
-  ZapIcon,
-} from "lucide-react"
+import { ArrowUpIcon, ChevronDownIcon, GripIcon } from "lucide-react"
 import { useActionState, useEffect, useState } from "react"
 
-import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,16 +17,7 @@ import {
 } from "@/components/ui/input-group"
 import { Spinner } from "@/components/ui/spinner"
 import { createGame, type CreateGameState } from "@/lib/games/actions"
-
-const suggestions = [
-  { icon: PickaxeIcon, label: "Voxel survival" },
-  { icon: SwordsIcon, label: "Ink samurai duel" },
-  { icon: ZapIcon, label: "Comic-book firefight" },
-  { icon: PlaneIcon, label: "Realistic battlefield" },
-  { icon: CrosshairIcon, label: "Fight-first shooter" },
-  { icon: CarIcon, label: "Jungle expedition drive" },
-  { icon: Gamepad2Icon, label: "Sunny kingdom platformer" },
-]
+import { CREATE_GAME_FORM_ID } from "@/lib/games/suggestions"
 
 const initialState: CreateGameState = { status: "idle", message: null }
 
@@ -55,7 +34,11 @@ export function ChatComposer() {
   }, [state])
 
   return (
-    <form action={formAction} className="flex w-full flex-col gap-4">
+    <form
+      id={CREATE_GAME_FORM_ID}
+      action={formAction}
+      className="flex w-full flex-col gap-4"
+    >
       <InputGroup className="bg-popover">
         <InputGroupTextarea
           name="prompt"
@@ -100,24 +83,6 @@ export function ChatComposer() {
           {state.message}
         </p>
       ) : null}
-
-      <div className="flex flex-wrap items-center justify-center gap-2">
-        {suggestions.map(({ icon: Icon, label }) => (
-          <Button
-            key={label}
-            type="submit"
-            name="suggestion"
-            value={label}
-            variant="outline"
-            size="sm"
-            className="rounded-full font-normal text-muted-foreground"
-            disabled={pending}
-          >
-            <Icon data-icon="inline-start" />
-            {label}
-          </Button>
-        ))}
-      </div>
     </form>
   )
 }
