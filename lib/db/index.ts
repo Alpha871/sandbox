@@ -17,7 +17,14 @@ const { postgres } = parseEnv(neonConfig, ["DATABASE_URL"])
 const globalForDb = globalThis as unknown as { pool?: Pool }
 
 const pool =
-  globalForDb.pool ?? new Pool({ connectionString: postgres.databaseUrl })
+  globalForDb.pool ??
+  new Pool({
+    connectionString: postgres.databaseUrl,
+    // Par défaut `pg` s'en remet au timeout TCP du système (~75 s, multiplié
+    // par le nombre d'IP résolues pour l'hôte). Une base injoignable doit
+    // échouer vite plutôt que retenir le rendu d'une page.
+    connectionTimeoutMillis: 5_000,
+  })
 
 if (process.env.NODE_ENV !== "production") {
   globalForDb.pool = pool
