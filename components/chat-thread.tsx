@@ -1,6 +1,7 @@
 "use client"
 
 import { useChat } from "@ai-sdk/react"
+import { DefaultChatTransport } from "ai"
 import Image from "next/image"
 import { useState } from "react"
 
@@ -15,10 +16,28 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller"
+import type { Game } from "@/lib/db/schema"
 
-export function ChatThread() {
+// La base est la source de vérité du fil : seul le dernier message part au
+// serveur, qui recharge le reste depuis `games.messages`.
+const transport = new DefaultChatTransport({
+  prepareSendMessagesRequest: ({ id, messages }) => ({
+    body: { id, message: messages.at(-1) },
+  }),
+})
+
+type ChatThreadProps = {
+  game: Game
+}
+
+export function ChatThread({ game }: ChatThreadProps) {
   const [message, setMessage] = useState("")
-  const { messages, sendMessage, status, error } = useChat()
+  // Une conversation par partie, reprise depuis le fil sauvegardé.
+  const { messages, sendMessage, status, error } = useChat({
+    id: game.id,
+    messages: game.messages,
+    transport,
+  })
 
   const pending = status === "submitted" || status === "streaming"
 

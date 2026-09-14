@@ -1,4 +1,12 @@
-import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core"
+import type { UIMessage } from "ai"
+import {
+  index,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core"
 
 export const games = pgTable(
   "games",
@@ -7,6 +15,8 @@ export const games = pgTable(
     /** Clerk `org_id` — Clerk reste la source de vérité des identités. */
     orgId: text("org_id").notNull(),
     title: text("title").notNull(),
+    /** Fil du chat de la partie, au format `UIMessage` de l'AI SDK. */
+    messages: jsonb("messages").$type<UIMessage[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
