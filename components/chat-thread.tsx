@@ -1,4 +1,7 @@
+"use client"
+
 import Image from "next/image"
+import { useState } from "react"
 
 import { ChatComposer } from "@/components/chat-composer"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
@@ -56,6 +59,14 @@ const messages: MockMessage[] = [
 ]
 
 export function ChatThread() {
+  const [message, setMessage] = useState("")
+
+  // Temporaire : pas encore d'envoi réel, on se contente de logger la valeur.
+  function sendMessage(value: string) {
+    console.log(value)
+    setMessage("")
+  }
+
   return (
     <div className="flex h-svh min-h-0 flex-col">
       <MessageScrollerProvider>
@@ -90,7 +101,11 @@ export function ChatThread() {
       </MessageScrollerProvider>
 
       <div className="mx-auto w-full max-w-2xl px-6 pb-6">
-        <ChatComposer />
+        <ChatComposer
+          value={message}
+          onValueChange={setMessage}
+          onSubmit={sendMessage}
+        />
       </div>
     </div>
   )

@@ -1,7 +1,7 @@
 "use client"
 
 import { ArrowUpIcon, ChevronDownIcon, GripIcon } from "lucide-react"
-import { useActionState, useEffect, useState } from "react"
+import type { FormEvent } from "react"
 
 import {
   DropdownMenu,
@@ -16,38 +16,40 @@ import {
   InputGroupTextarea,
 } from "@/components/ui/input-group"
 import { Spinner } from "@/components/ui/spinner"
-import { createGame, type CreateGameState } from "@/lib/games/actions"
-import { CREATE_GAME_FORM_ID } from "@/lib/games/suggestions"
 
-const initialState: CreateGameState = { status: "idle", message: null }
+type ChatComposerProps = {
+  value: string
+  onValueChange: (value: string) => void
+  onSubmit: (value: string) => void
+  pending?: boolean
+  error?: string | null
+}
 
-export function ChatComposer() {
-  const [state, formAction, pending] = useActionState(createGame, initialState)
-  // Textarea contrôlé : React vide un formulaire non contrôlé après chaque
-  // soumission, ce qui ferait perdre le prompt quand l'action échoue.
-  const [prompt, setPrompt] = useState("")
-
-  useEffect(() => {
-    if (state.status === "success") {
-      setPrompt("")
-    }
-  }, [state])
+// Composant contrôlé : le parent possède la valeur et décide quoi faire à
+// l'envoi (créer une partie, envoyer un message…).
+export function ChatComposer({
+  value,
+  onValueChange,
+  onSubmit,
+  pending = false,
+  error = null,
+}: ChatComposerProps) {
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    onSubmit(value)
+  }
 
   return (
-    <form
-      id={CREATE_GAME_FORM_ID}
-      action={formAction}
-      className="flex w-full flex-col gap-4"
-    >
+    <form onSubmit={handleSubmit} className="flex w-full flex-col gap-4">
       <InputGroup className="bg-popover">
         <InputGroupTextarea
           name="prompt"
-          value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
+          value={value}
+          onChange={(event) => onValueChange(event.target.value)}
           placeholder="Describe the game you want to build…"
           rows={1}
           className="max-h48 field-sizing-content min-h-10"
-          aria-invalid={state.status === "error"}
+          aria-invalid={Boolean(error)}
         />
         <InputGroupAddon align="block-end">
           <DropdownMenu>
@@ -78,9 +80,9 @@ export function ChatComposer() {
         </InputGroupAddon>
       </InputGroup>
 
-      {state.status === "error" && state.message ? (
+      {error ? (
         <p role="alert" className="text-center text-sm text-destructive">
-          {state.message}
+          {error}
         </p>
       ) : null}
     </form>
