@@ -1,7 +1,10 @@
 "use server"
 
+import { google } from "@ai-sdk/google"
 import { auth } from "@clerk/nextjs/server"
+import { generateId, generateText } from "ai"
 import { refresh } from "next/cache"
+import { redirect } from "next/navigation"
 
 import { db } from "@/lib/db"
 import { games } from "@/lib/db/schema"
@@ -9,9 +12,15 @@ import { games } from "@/lib/db/schema"
 /** Longueur maximale d'un titre dérivé du prompt. */
 const TITLE_MAX_LENGTH = 60
 
-/** État rendu par le composer, piloté par `useActionState`. */
+/** Portion du prompt envoyée au modèle : le début suffit pour un titre. */
+const TITLE_PROMPT_MAX_LENGTH = 1000
+
+/**
+ * État rendu par le composer, piloté par `useActionState`. Pas d'état
+ * « success » : une création réussie redirige vers la partie.
+ */
 export type CreateGameState = {
-  status: "idle" | "error" | "success"
+  status: "idle" | "error"
   message: string | null
 }
 
@@ -28,6 +37,28 @@ function toTitle(prompt: string) {
   return line.length > TITLE_MAX_LENGTH
     ? `${line.slice(0, TITLE_MAX_LENGTH - 1).trimEnd()}…`
     : line
+}
+
+/** Titre court généré par un modèle rapide, repli sur `toTitle(prompt)`. */
+async function generateTitle(prompt: string) {
+  try {
+    const { text } = await generateText({
+      model: google("gemini-3.5-flash-lite"),
+      instructions:
+        "Write a short title (max 6 words) for the game described by the user. " +
+        "Reply with the title only, no quotes, no punctuation at the end.",
+      prompt: prompt.slice(0, TITLE_PROMPT_MAX_LENGTH),
+      timeout: 5000,
+    })
+
+    return toTitle(text.replace(/^["'«\s]+|["'»\s]+$/g, "")) || toTitle(prompt)
+  } catch (error) {
+    // Le titre est un confort : un modèle indisponible ne doit pas bloquer la
+    // création, on retombe sur la première ligne du prompt.
+    console.error("[games] generateTitle a échoué", error)
+
+    return toTitle(prompt)
+  }
 }
 
 export async function createGame(
@@ -49,17 +80,38 @@ export async function createGame(
   // unique renverrait le textarea (vide) au clic sur une suggestion.
   const prompt =
     readField(formData, "prompt") || readField(formData, "suggestion")
-  const title = toTitle(prompt)
 
-  if (!title) {
+  // Vérifié avant l'appel au modèle : un prompt vide ne coûte rien.
+  if (!toTitle(prompt)) {
     return {
       status: "error",
       message: "Describe the game you want to build first.",
     }
   }
 
+  const title = await generateTitle(prompt)
+
+  let gameId: string
+
   try {
-    await db.insert(games).values({ orgId, title })
+    // Le prompt devient le premier message du fil : `ChatThread` demande la
+    // réponse à l'ouverture de la partie.
+    const [game] = await db
+      .insert(games)
+      .values({
+        orgId,
+        title,
+        messages: [
+          {
+            id: generateId(),
+            role: "user",
+            parts: [{ type: "text", text: prompt }],
+          },
+        ],
+      })
+      .returning({ id: games.id })
+
+    gameId = game.id
   } catch (error) {
     // L'erreur brute (chaîne de connexion, SQL) ne doit pas atteindre le
     // client : on la garde côté serveur et on renvoie un message neutre.
@@ -74,5 +126,6 @@ export async function createGame(
   // Re-rend `app/(app)/layout.tsx` : la sidebar affiche la nouvelle partie.
   refresh()
 
-  return { status: "success", message: null }
+  // Hors du try : `redirect` lève une exception gérée par Next.
+  redirect(`/games/${gameId}`)
 }

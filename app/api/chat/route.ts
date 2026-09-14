@@ -28,18 +28,32 @@ export async function POST(req: Request) {
     return new Response("Game not found", { status: 404 })
   }
 
+  const storedIndex = game.messages.findIndex((m) => m.id === message?.id)
+
+  // Déjà enregistré mais plus en dernier : il a déjà reçu sa réponse (page
+  // périmée, second onglet, Fast Refresh…). Le rajouter le dupliquerait.
+  if (storedIndex !== -1 && storedIndex !== game.messages.length - 1) {
+    return new Response("This message was already answered. Reload the page.", {
+      status: 409,
+    })
+  }
+
+  // Dernier message enregistré (le prompt posé par `createGame`) : on repart
+  // du fil stocké tel quel, sinon il serait dupliqué.
+  const alreadyStored = storedIndex !== -1
+
   let messages: UIMessage[]
   try {
     messages = await validateUIMessages({
-      messages: [...game.messages, message],
+      messages: alreadyStored ? game.messages : [...game.messages, message],
     })
   } catch {
     return new Response("Invalid message", { status: 400 })
   }
 
-  // Seul l'utilisateur ajoute des messages : un message `assistant` forgé
-  // côté client ne doit pas entrer dans le fil.
-  if (message.role !== "user") {
+  // Le modèle ne répond qu'à un message utilisateur : un message `assistant`
+  // forgé côté client ne doit pas entrer dans le fil.
+  if (messages.at(-1)?.role !== "user") {
     return new Response("Invalid message", { status: 400 })
   }
 

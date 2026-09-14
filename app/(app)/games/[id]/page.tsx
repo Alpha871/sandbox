@@ -16,5 +16,6 @@ export default async function GamePage({ params }: PageProps<"/games/[id]">) {
     notFound()
   }
 
-  return <ChatThread game={game} />
+  // `key` : une autre partie remonte `ChatThread`, et donc son `Chat`.
+  return <ChatThread key={game.id} game={game} />
 }

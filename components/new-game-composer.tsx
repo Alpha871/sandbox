@@ -1,6 +1,6 @@
 "use client"
 
-import { startTransition, useActionState, useEffect, useState } from "react"
+import { startTransition, useActionState, useState } from "react"
 
 import { ChatComposer } from "@/components/chat-composer"
 import { Button } from "@/components/ui/button"
@@ -17,12 +17,6 @@ const initialState: CreateGameState = { status: "idle", message: null }
 export function NewGameComposer() {
   const [state, formAction, pending] = useActionState(createGame, initialState)
   const [prompt, setPrompt] = useState("")
-
-  useEffect(() => {
-    if (state.status === "success") {
-      setPrompt("")
-    }
-  }, [state])
 
   function submitPrompt(value: string) {
     const formData = new FormData()

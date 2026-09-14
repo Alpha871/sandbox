@@ -1,9 +1,9 @@
 "use client"
 
-import { useChat } from "@ai-sdk/react"
+import { Chat, useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
 import Image from "next/image"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { ChatComposer } from "@/components/chat-composer"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
@@ -32,14 +32,32 @@ type ChatThreadProps = {
 
 export function ChatThread({ game }: ChatThreadProps) {
   const [message, setMessage] = useState("")
-  // Une conversation par partie, reprise depuis le fil sauvegardé.
-  const { messages, sendMessage, status, error } = useChat({
-    id: game.id,
-    messages: game.messages,
-    transport,
-  })
+
+  // Une conversation par partie, reprise depuis le fil sauvegardé. Le `Chat`
+  // appartient au composant : `useChat` n'appelle `chat.stop()` au démontage
+  // que pour un chat qu'il a créé lui-même, et en dev le StrictMode démonte
+  // juste après le montage — ce qui annulerait l'envoi automatique ci-dessous.
+  // La page passe `key={game.id}` : une autre partie remonte le composant.
+  const [chat] = useState(
+    () => new Chat({ id: game.id, messages: game.messages, transport })
+  )
+  const { messages, sendMessage, status, error } = useChat({ chat })
 
   const pending = status === "submitted" || status === "streaming"
+
+  // Un fil enregistré qui se termine par un message utilisateur attend sa
+  // réponse (le prompt posé par `createGame`) : `sendMessage()` sans argument
+  // la demande sans ajouter de message. Le ref garantit un envoi par partie.
+  const submittedGameId = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (submittedGameId.current === game.id) return
+    submittedGameId.current = game.id
+
+    if (game.messages.at(-1)?.role === "user") {
+      sendMessage()
+    }
+  }, [game.id, game.messages, sendMessage])
 
   function handleSubmit(value: string) {
     const text = value.trim()

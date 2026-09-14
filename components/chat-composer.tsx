@@ -1,7 +1,7 @@
 "use client"
 
 import { ArrowUpIcon, ChevronDownIcon, GripIcon } from "lucide-react"
-import type { FormEvent } from "react"
+import type { FormEvent, KeyboardEvent } from "react"
 
 import {
   DropdownMenu,
@@ -36,7 +36,25 @@ export function ChatComposer({
 }: ChatComposerProps) {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    // `requestSubmit()` passe outre le bouton désactivé : on bloque ici un
+    // second envoi pendant que le premier est en cours.
+    if (pending) return
     onSubmit(value)
+  }
+
+  // Entrée envoie, Maj+Entrée va à la ligne. Pendant une composition IME,
+  // Entrée valide le mot en cours et ne doit pas envoyer.
+  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (
+      event.key !== "Enter" ||
+      event.shiftKey ||
+      event.nativeEvent.isComposing
+    ) {
+      return
+    }
+
+    event.preventDefault()
+    event.currentTarget.form?.requestSubmit()
   }
 
   return (
@@ -46,9 +64,10 @@ export function ChatComposer({
           name="prompt"
           value={value}
           onChange={(event) => onValueChange(event.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder="Describe the game you want to build…"
           rows={1}
-          className="max-h-48 field-sizing-content min-h-10"
+          className="field-sizing-content max-h-48 min-h-10"
           aria-invalid={Boolean(error)}
         />
         <InputGroupAddon align="block-end">
