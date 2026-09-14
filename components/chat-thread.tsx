@@ -1,5 +1,6 @@
 "use client"
 
+import { useChat } from "@ai-sdk/react"
 import Image from "next/image"
 import { useState } from "react"
 
@@ -15,55 +16,17 @@ import {
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller"
 
-type MockMessage = {
-  id: string
-  role: "user" | "assistant"
-  content: string
-}
-
-// Conversation factice : aucun envoi ni chargement réel pour l'instant.
-const messages: MockMessage[] = [
-  {
-    id: "1",
-    role: "user",
-    content: "Build me a voxel survival game set on a floating island.",
-  },
-  {
-    id: "2",
-    role: "assistant",
-    content:
-      "Great pick! I'll start with a small floating island made of grass, dirt and stone blocks, a day/night cycle, and a basic inventory. Should the player be able to fall off the edge?",
-  },
-  {
-    id: "3",
-    role: "user",
-    content: "Yes, and respawn them at the center of the island.",
-  },
-  {
-    id: "4",
-    role: "assistant",
-    content:
-      "Done. Falling below the island now respawns the player at the center with their inventory intact. Next, do you want hostile mobs at night or a peaceful mode?",
-  },
-  {
-    id: "5",
-    role: "user",
-    content: "Add a few slimes that only spawn at night.",
-  },
-  {
-    id: "6",
-    role: "assistant",
-    content:
-      "Slimes now spawn in dark areas after sunset and despawn at dawn. They bounce toward the player and split into two smaller slimes when hit. Try it out and tell me what to tweak!",
-  },
-]
-
 export function ChatThread() {
   const [message, setMessage] = useState("")
+  const { messages, sendMessage, status, error } = useChat()
 
-  // Temporaire : pas encore d'envoi réel, on se contente de logger la valeur.
-  function sendMessage(value: string) {
-    console.log(value)
+  const pending = status === "submitted" || status === "streaming"
+
+  function handleSubmit(value: string) {
+    const text = value.trim()
+    if (!text || pending) return
+
+    sendMessage({ text })
     setMessage("")
   }
 
@@ -73,11 +36,11 @@ export function ChatThread() {
         <MessageScroller className="flex-1">
           <MessageScrollerViewport>
             <MessageScrollerContent className="mx-auto w-full max-w-2xl p-6">
-              {messages.map(({ id, role, content }) => (
+              {messages.map(({ id, role, parts }) => (
                 <MessageScrollerItem key={id} messageId={id}>
                   <Message align={role === "user" ? "end" : "start"}>
                     {role === "assistant" ? (
-                      <MessageAvatar className="rounf size-8 self-start bg-transparent">
+                      <MessageAvatar className="size-8 self-start rounded-full bg-transparent">
                         <Image
                           src="/logo.svg"
                           alt="Assistant"
@@ -88,7 +51,13 @@ export function ChatThread() {
                     ) : null}
                     <MessageContent>
                       <Bubble variant={role === "user" ? "secondary" : "ghost"}>
-                        <BubbleContent>{content}</BubbleContent>
+                        <BubbleContent>
+                          {parts.map((part, index) =>
+                            part.type === "text" ? (
+                              <span key={`${id}-${index}`}>{part.text}</span>
+                            ) : null
+                          )}
+                        </BubbleContent>
                       </Bubble>
                     </MessageContent>
                   </Message>
@@ -104,7 +73,9 @@ export function ChatThread() {
         <ChatComposer
           value={message}
           onValueChange={setMessage}
-          onSubmit={sendMessage}
+          onSubmit={handleSubmit}
+          pending={pending}
+          error={error?.message}
         />
       </div>
     </div>

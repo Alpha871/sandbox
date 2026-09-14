@@ -48,7 +48,7 @@ export function ChatComposer({
           onChange={(event) => onValueChange(event.target.value)}
           placeholder="Describe the game you want to build…"
           rows={1}
-          className="max-h48 field-sizing-content min-h-10"
+          className="max-h-48 field-sizing-content min-h-10"
           aria-invalid={Boolean(error)}
         />
         <InputGroupAddon align="block-end">
