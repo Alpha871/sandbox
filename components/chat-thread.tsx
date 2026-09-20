@@ -2,12 +2,17 @@
 
 import { Chat, useChat } from "@ai-sdk/react"
 import { useTriggerChatTransport } from "@trigger.dev/sdk/chat/react"
+import { getToolName, isToolUIPart } from "ai"
+import type { DynamicToolUIPart, ToolUIPart } from "ai"
+import { CheckIcon, Loader2Icon, XIcon } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
+import { cn } from "cn"
 
 import { ChatComposer } from "@/components/chat-composer"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
+import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker"
 import { Message, MessageAvatar, MessageContent } from "@/components/ui/message"
 import {
   MessageScroller,
@@ -23,6 +28,70 @@ import type { gameChat } from "@/trigger/chat"
 
 type ChatThreadProps = {
   game: Game
+}
+
+type ToolStatus = "active" | "done" | "failed"
+
+// Verbes par outil : présent pendant l'appel, participe passé une fois fini.
+const TOOL_LABELS: Record<string, { active: string; done: string }> = {
+  write_file: { active: "Writing", done: "Wrote" },
+  replace_text: { active: "Editing", done: "Edited" },
+  read_file: { active: "Reading", done: "Read" },
+  list_files: { active: "Listing", done: "Listed" },
+  delete_file: { active: "Deleting", done: "Deleted" },
+}
+
+function toolStatus(part: ToolUIPart | DynamicToolUIPart): ToolStatus {
+  switch (part.state) {
+    case "output-available":
+      return "done"
+    case "output-error":
+    case "output-denied":
+      return "failed"
+    default:
+      return "active"
+  }
+}
+
+// Tous les tools prennent un `path` relatif au dossier de la partie ; le
+// `input` reste `unknown` tant que le fil n'est pas typé par l'agent.
+function toolPath(input: unknown): string | null {
+  if (typeof input !== "object" || input === null) return null
+  const { path } = input as { path?: unknown }
+  return typeof path === "string" && path ? path : null
+}
+
+function ToolCallMarker({ part }: { part: ToolUIPart | DynamicToolUIPart }) {
+  const name = getToolName(part)
+  const status = toolStatus(part)
+  const path = toolPath(part.input)
+  const verbs = TOOL_LABELS[name] ?? { active: `Running ${name}`, done: name }
+
+  return (
+    <Marker
+      data-status={status}
+      className={cn(status === "failed" && "text-destructive")}
+    >
+      <MarkerIcon>
+        {status === "active" ? (
+          <Loader2Icon className="animate-spin" />
+        ) : status === "done" ? (
+          <CheckIcon />
+        ) : (
+          <XIcon />
+        )}
+      </MarkerIcon>
+      <MarkerContent>
+        {status === "failed"
+          ? `Failed: ${verbs.active.toLowerCase()}${path ? ` ${path}` : ""}${
+              part.state === "output-error" ? ` — ${part.errorText}` : ""
+            }`
+          : `${status === "active" ? verbs.active : verbs.done}${
+              path ? ` ${path}` : ""
+            }${status === "active" ? "…" : ""}`}
+      </MarkerContent>
+    </Marker>
+  )
 }
 
 export function ChatThread({ game }: ChatThreadProps) {
@@ -127,15 +196,24 @@ export function ChatThread({ game }: ChatThreadProps) {
                       </MessageAvatar>
                     ) : null}
                     <MessageContent>
-                      <Bubble variant={role === "user" ? "secondary" : "ghost"}>
-                        <BubbleContent>
-                          {parts.map((part, index) =>
-                            part.type === "text" ? (
-                              <span key={`${id}-${index}`}>{part.text}</span>
-                            ) : null
-                          )}
-                        </BubbleContent>
-                      </Bubble>
+                      {parts.map((part, index) => {
+                        const key = `${id}-${index}`
+
+                        if (isToolUIPart(part)) {
+                          return <ToolCallMarker key={key} part={part} />
+                        }
+                        if (part.type === "text" && part.text) {
+                          return (
+                            <Bubble
+                              key={key}
+                              variant={role === "user" ? "secondary" : "ghost"}
+                            >
+                              <BubbleContent>{part.text}</BubbleContent>
+                            </Bubble>
+                          )
+                        }
+                        return null
+                      })}
                     </MessageContent>
                   </Message>
                 </MessageScrollerItem>
