@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { notFound } from "next/navigation"
 
-import { ChatThread } from "@/components/chat-thread"
+import { GameChat } from "@/components/game-chat"
 import { getGame } from "@/lib/games/queries"
 
 export default async function GamePage({ params }: PageProps<"/games/[id]">) {
@@ -16,6 +16,6 @@ export default async function GamePage({ params }: PageProps<"/games/[id]">) {
     notFound()
   }
 
-  // `key` : une autre partie remonte `ChatThread`, et donc son `Chat`.
-  return <ChatThread key={game.id} game={game} />
+  // `key` : une autre partie remonte `GameChat`, et donc le `Chat` de `ChatThread`.
+  return <GameChat key={game.id} game={game} />
 }

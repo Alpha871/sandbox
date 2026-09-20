@@ -3,6 +3,7 @@
 import { Chat, useChat } from "@ai-sdk/react"
 import { useTriggerChatTransport } from "@trigger.dev/sdk/chat/react"
 import Image from "next/image"
+import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 
 import { ChatComposer } from "@/components/chat-composer"
@@ -62,6 +63,19 @@ export function ChatThread({ game }: ChatThreadProps) {
   })
 
   const pending = status === "submitted" || status === "streaming"
+
+  // La sandbox est créée par le run Trigger.dev, après le rendu serveur :
+  // `game.sandboxId` est périmé jusqu'à la fin du tour. On recharge alors les
+  // données de la page pour faire apparaître l'aperçu.
+  const router = useRouter()
+  const wasPending = useRef(false)
+
+  useEffect(() => {
+    if (wasPending.current && !pending && !game.sandboxId) {
+      router.refresh()
+    }
+    wasPending.current = pending
+  }, [pending, game.sandboxId, router])
 
   // Un fil enregistré qui se termine par un message utilisateur, sans session,
   // attend sa toute première réponse (le prompt posé par `createGame`) :
