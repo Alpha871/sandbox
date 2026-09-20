@@ -12,12 +12,15 @@ const HEALTH_CHECK_DELAY_MS = 500
 
 /**
  * Crée la sandbox Daytona d'une partie, y pose un `index.html` minimal et
- * enregistre son id sur la partie. Sans effet si la partie en a déjà une :
- * une reprise de run ne doit pas laisser de sandbox orpheline (facturée).
+ * enregistre son id sur la partie. Si la partie en a déjà une, la renvoie sans
+ * en créer : une reprise de run ne doit pas laisser de sandbox orpheline
+ * (facturée). La sandbox renvoyée n'est pas forcément démarrée.
  */
-export async function createGameSandbox(gameId: string): Promise<string> {
+export async function createGameSandbox(
+  gameId: string
+): Promise<{ sandbox: Sandbox }> {
   const existing = await loadGameSandboxId(gameId)
-  if (existing) return existing
+  if (existing) return { sandbox: await daytona.get(existing) }
 
   const sandbox = await daytona.create({ labels: { gameId } })
 
@@ -33,7 +36,30 @@ export async function createGameSandbox(gameId: string): Promise<string> {
     throw error
   }
 
-  return sandbox.id
+  return { sandbox }
+}
+
+async function ensureStarted(sandbox: Sandbox): Promise<{ sandbox: Sandbox }> {
+  // Une sandbox inactive est arrêtée par Daytona ; son disque est conservé.
+  if (sandbox.state !== SandboxState.STARTED) {
+    await sandbox.start()
+  }
+
+  return { sandbox }
+}
+
+/**
+ * Renvoie la sandbox de la partie, démarrée, en la créant si la partie n'en
+ * a pas encore. Point d'entrée des tools de l'agent : ils reçoivent toujours
+ * une instance utilisable, sans se soucier de son cycle de vie. Ne lance pas
+ * le serveur de la partie (voir `startGameServer`). Lève une erreur si la
+ * sandbox enregistrée n'existe plus côté Daytona.
+ */
+export async function getGameSandbox(
+  gameId: string
+): Promise<{ sandbox: Sandbox }> {
+  const { sandbox } = await createGameSandbox(gameId)
+  return ensureStarted(sandbox)
 }
 
 /**
@@ -45,12 +71,7 @@ export async function createGameSandbox(gameId: string): Promise<string> {
 export async function startGameServer(
   sandboxId: string
 ): Promise<{ sandbox: Sandbox }> {
-  const sandbox = await daytona.get(sandboxId)
-
-  // Une sandbox inactive est arrêtée par Daytona ; son disque est conservé.
-  if (sandbox.state !== SandboxState.STARTED) {
-    await sandbox.start()
-  }
+  const { sandbox } = await ensureStarted(await daytona.get(sandboxId))
 
   const isServing = async () => {
     const { exitCode } = await sandbox.process.executeCommand(
