@@ -1,8 +1,7 @@
 import "server-only"
 
 import { auth } from "@clerk/nextjs/server"
-import type { UIMessage } from "ai"
-import { and, desc, eq } from "drizzle-orm"
+import { and, desc, eq, isNull } from "drizzle-orm"
 
 import { db } from "@/lib/db"
 import { games, type Game } from "@/lib/db/schema"
@@ -68,20 +67,23 @@ export async function getGame(id: string): Promise<Game | null> {
 }
 
 /**
- * Remplace le fil complet du chat d'une partie. `orgId` est passé plutôt que
- * lu via `auth()` : l'appel part de `onEnd`, une fois le streaming commencé.
+ * Enregistre la session Trigger.dev d'une partie qui n'en a pas encore. Sans
+ * effet si une session existe déjà : l'écraser effacerait son `lastEventId`,
+ * le curseur qui évite de rejouer la réponse déjà affichée.
  */
-export async function saveGameMessages({
+export async function initGameChatSession({
   id,
   orgId,
-  messages,
+  publicAccessToken,
 }: {
   id: string
   orgId: string
-  messages: UIMessage[]
+  publicAccessToken: string
 }): Promise<void> {
   await db
     .update(games)
-    .set({ messages })
-    .where(and(eq(games.id, id), eq(games.orgId, orgId)))
+    .set({ chatSession: { publicAccessToken } })
+    .where(
+      and(eq(games.id, id), eq(games.orgId, orgId), isNull(games.chatSession))
+    )
 }

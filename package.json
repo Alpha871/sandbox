@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.69",
+    "@ai-sdk/otel": "^1.0.107",
     "@ai-sdk/react": "^4.0.102",
     "@base-ui/react": "^1.8.0",
     "@clerk/nextjs": "^7.9.2",

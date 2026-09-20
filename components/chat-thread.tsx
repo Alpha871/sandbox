@@ -1,7 +1,7 @@
 "use client"
 
 import { Chat, useChat } from "@ai-sdk/react"
-import { DefaultChatTransport } from "ai"
+import { useTriggerChatTransport } from "@trigger.dev/sdk/chat/react"
 import Image from "next/image"
 import { useEffect, useRef, useState } from "react"
 
@@ -17,14 +17,8 @@ import {
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller"
 import type { Game } from "@/lib/db/schema"
-
-// La base est la source de vérité du fil : seul le dernier message part au
-// serveur, qui recharge le reste depuis `games.messages`.
-const transport = new DefaultChatTransport({
-  prepareSendMessagesRequest: ({ id, messages }) => ({
-    body: { id, message: messages.at(-1) },
-  }),
-})
+import { mintChatAccessToken, startChatSession } from "@/lib/games/chat-actions"
+import type { gameChat } from "@/trigger/chat"
 
 type ChatThreadProps = {
   game: Game
@@ -32,6 +26,17 @@ type ChatThreadProps = {
 
 export function ChatThread({ game }: ChatThreadProps) {
   const [message, setMessage] = useState("")
+
+  // La base est la source de vérité du fil : l'agent recharge `games.messages`
+  // à chaque tour, seul le nouveau message part du client. La session
+  // enregistrée permet à un onglet neuf de se reconnecter sans en recréer une.
+  const transport = useTriggerChatTransport<typeof gameChat>({
+    task: "game-chat",
+    accessToken: ({ chatId }) => mintChatAccessToken(chatId),
+    startSession: ({ chatId, clientData }) =>
+      startChatSession({ chatId, clientData }),
+    sessions: game.chatSession ? { [game.id]: game.chatSession } : undefined,
+  })
 
   // Une conversation par partie, reprise depuis le fil sauvegardé. Le `Chat`
   // appartient au composant : `useChat` n'appelle `chat.stop()` au démontage
@@ -41,23 +46,31 @@ export function ChatThread({ game }: ChatThreadProps) {
   const [chat] = useState(
     () => new Chat({ id: game.id, messages: game.messages, transport })
   )
-  const { messages, sendMessage, status, error } = useChat({ chat })
+  // Le message utilisateur est enregistré dès le début du tour : un fil qui
+  // se termine par lui et dont la session existe déjà a un tour en cours ou
+  // interrompu. On reprend son flux plutôt que de renvoyer le message.
+  const awaitingAnswer = game.messages.at(-1)?.role === "user"
+  const { messages, sendMessage, status, error } = useChat({
+    chat,
+    resume: awaitingAnswer && game.chatSession !== null,
+  })
 
   const pending = status === "submitted" || status === "streaming"
 
-  // Un fil enregistré qui se termine par un message utilisateur attend sa
-  // réponse (le prompt posé par `createGame`) : `sendMessage()` sans argument
-  // la demande sans ajouter de message. Le ref garantit un envoi par partie.
+  // Un fil enregistré qui se termine par un message utilisateur, sans session,
+  // attend sa toute première réponse (le prompt posé par `createGame`) :
+  // `sendMessage()` sans argument la demande sans ajouter de message. Le ref
+  // garantit un envoi par partie.
   const submittedGameId = useRef<string | null>(null)
 
   useEffect(() => {
     if (submittedGameId.current === game.id) return
     submittedGameId.current = game.id
 
-    if (game.messages.at(-1)?.role === "user") {
+    if (awaitingAnswer && game.chatSession === null) {
       sendMessage()
     }
-  }, [game.id, game.messages, sendMessage])
+  }, [game.id, game.chatSession, awaitingAnswer, sendMessage])
 
   function handleSubmit(value: string) {
     const text = value.trim()
