@@ -30,6 +30,8 @@ export const games = pgTable(
     messages: jsonb("messages").$type<UIMessage[]>().notNull().default([]),
     /** Session Trigger.dev du chat ; `null` tant que le chat n'a pas démarré. */
     chatSession: jsonb("chat_session").$type<GameChatSession>(),
+    /** Sandbox Daytona de la partie ; `null` tant qu'elle n'est pas créée. */
+    sandboxId: text("sandbox_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

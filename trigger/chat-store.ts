@@ -35,6 +35,25 @@ export async function loadGameMessages(id: string): Promise<UIMessage[]> {
   return game.messages
 }
 
+/** Sandbox Daytona de la partie, `null` si elle n'a pas encore été créée. */
+export async function loadGameSandboxId(id: string): Promise<string | null> {
+  const [game] = await db
+    .select({ sandboxId: games.sandboxId })
+    .from(games)
+    .where(eq(games.id, id))
+    .limit(1)
+
+  if (!game) {
+    throw new Error(`Game ${id} not found`)
+  }
+
+  return game.sandboxId
+}
+
+export async function saveGameSandboxId(id: string, sandboxId: string) {
+  await db.update(games).set({ sandboxId }).where(eq(games.id, id))
+}
+
 export async function saveGameMessages(id: string, messages: UIMessage[]) {
   await db.update(games).set({ messages }).where(eq(games.id, id))
 }

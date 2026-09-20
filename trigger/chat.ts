@@ -2,6 +2,7 @@ import { google } from "@ai-sdk/google"
 import { chat, upsertIncomingMessage } from "@trigger.dev/sdk/ai"
 import { createIdGenerator } from "ai"
 
+import { createGameSandbox } from "../lib/daytona/utils"
 import {
   loadGameMessages,
   saveGameMessages,
@@ -29,6 +30,11 @@ export const gameChat = chat.agent({
     }
 
     return stored
+  },
+
+  // Une fois par partie, au premier message : la sandbox vit autant qu'elle.
+  onChatStart: async ({ chatId }) => {
+    await createGameSandbox(chatId)
   },
 
   onTurnComplete: async ({ chatId, uiMessages, chatAccessToken, lastEventId }) => {
