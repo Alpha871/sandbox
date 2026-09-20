@@ -12,9 +12,9 @@ export default function AppLayout({
   const games = listGames()
 
   return (
-    <SidebarProvider>
+    <SidebarProvider className="h-svh">
       <AppSidebar games={games} />
-      <SidebarInset>{children}</SidebarInset>
+      <SidebarInset className="min-h-0">{children}</SidebarInset>
     </SidebarProvider>
   )
 }

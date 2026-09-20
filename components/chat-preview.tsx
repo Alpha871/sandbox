@@ -4,12 +4,14 @@ import { useEffect, useState } from "react"
 
 type ChatPreviewProps = {
   gameId: string
+  /** L'URL reste identique entre les tours : changer la révision recharge l'iframe. */
+  revision: number
 }
 
 type PreviewState =
   { status: "loading" } | { status: "ready"; url: string } | { status: "error" }
 
-export function ChatPreview({ gameId }: ChatPreviewProps) {
+export function ChatPreview({ gameId, revision }: ChatPreviewProps) {
   const [preview, setPreview] = useState<PreviewState>({ status: "loading" })
 
   useEffect(() => {
@@ -39,6 +41,7 @@ export function ChatPreview({ gameId }: ChatPreviewProps) {
   if (preview.status === "ready") {
     return (
       <iframe
+        key={revision}
         src={preview.url}
         title="Aperçu de la partie"
         className="size-full border-0 bg-background"

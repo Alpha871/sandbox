@@ -39,6 +39,13 @@ export const gameChat = chat.agent({
     await createGameSandbox(chatId)
   },
 
+  // Les tools ont fini d'écrire dans la sandbox mais le flux est encore
+  // ouvert : on prévient le client de recharger l'aperçu. `transient` : le
+  // signal n'a pas à finir dans `games.messages`.
+  onBeforeTurnComplete: async ({ writer }) => {
+    writer.write({ type: "data-preview-refresh", data: {}, transient: true })
+  },
+
   onTurnComplete: async ({ chatId, uiMessages, chatAccessToken, lastEventId }) => {
     await saveGameTurn(chatId, uiMessages, {
       publicAccessToken: chatAccessToken,

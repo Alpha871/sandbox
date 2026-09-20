@@ -28,6 +28,8 @@ import type { gameChat } from "@/trigger/chat"
 
 type ChatThreadProps = {
   game: Game
+  /** Appelé quand l'agent signale la fin d'un tour (la sandbox est à jour). */
+  onTurnComplete?: () => void
 }
 
 type ToolStatus = "active" | "done" | "failed"
@@ -94,8 +96,14 @@ function ToolCallMarker({ part }: { part: ToolUIPart | DynamicToolUIPart }) {
   )
 }
 
-export function ChatThread({ game }: ChatThreadProps) {
+export function ChatThread({ game, onTurnComplete }: ChatThreadProps) {
   const [message, setMessage] = useState("")
+
+  // Le `Chat` n'est créé qu'une fois : son `onData` lit la dernière prop.
+  const onTurnCompleteRef = useRef(onTurnComplete)
+  useEffect(() => {
+    onTurnCompleteRef.current = onTurnComplete
+  }, [onTurnComplete])
 
   // La base est la source de vérité du fil : l'agent recharge `games.messages`
   // à chaque tour, seul le nouveau message part du client. La session
@@ -114,7 +122,18 @@ export function ChatThread({ game }: ChatThreadProps) {
   // juste après le montage — ce qui annulerait l'envoi automatique ci-dessous.
   // La page passe `key={game.id}` : une autre partie remonte le composant.
   const [chat] = useState(
-    () => new Chat({ id: game.id, messages: game.messages, transport })
+    () =>
+      new Chat({
+        id: game.id,
+        messages: game.messages,
+        transport,
+        // Signal transitoire émis par `onBeforeTurnComplete` (trigger/chat.ts).
+        onData: (part) => {
+          if (part.type === "data-preview-refresh") {
+            onTurnCompleteRef.current?.()
+          }
+        },
+      })
   )
   // Le message utilisateur est enregistré dès le début du tour : un fil qui
   // se termine par lui et dont la session existe déjà a un tour en cours ou
@@ -177,7 +196,7 @@ export function ChatThread({ game }: ChatThreadProps) {
   }
 
   return (
-    <div className="flex h-svh min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <MessageScrollerProvider>
         <MessageScroller className="flex-1">
           <MessageScrollerViewport>
