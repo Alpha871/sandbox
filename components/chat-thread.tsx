@@ -50,7 +50,13 @@ export function ChatThread({ game }: ChatThreadProps) {
   // se termine par lui et dont la session existe déjà a un tour en cours ou
   // interrompu. On reprend son flux plutôt que de renvoyer le message.
   const awaitingAnswer = game.messages.at(-1)?.role === "user"
-  const { messages, sendMessage, status, error } = useChat({
+  const {
+    messages,
+    sendMessage,
+    stop: stopChat,
+    status,
+    error,
+  } = useChat({
     chat,
     resume: awaitingAnswer && game.chatSession !== null,
   })
@@ -78,6 +84,13 @@ export function ChatThread({ game }: ChatThreadProps) {
 
     sendMessage({ text })
     setMessage("")
+  }
+
+  // Après un `resume`, le `stop()` de `useChat` ne ferme que le flux local :
+  // `stopGeneration` prévient le run Trigger.dev, qui interrompt le modèle.
+  function handleStop() {
+    transport.stopGeneration(game.id)
+    stopChat()
   }
 
   return (
@@ -124,6 +137,7 @@ export function ChatThread({ game }: ChatThreadProps) {
           value={message}
           onValueChange={setMessage}
           onSubmit={handleSubmit}
+          onStop={handleStop}
           pending={pending}
           error={error?.message}
         />

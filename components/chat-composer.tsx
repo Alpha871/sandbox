@@ -1,6 +1,11 @@
 "use client"
 
-import { ArrowUpIcon, ChevronDownIcon, GripIcon } from "lucide-react"
+import {
+  ArrowUpIcon,
+  ChevronDownIcon,
+  GripIcon,
+  SquareIcon,
+} from "lucide-react"
 import type { FormEvent, KeyboardEvent } from "react"
 
 import {
@@ -15,12 +20,13 @@ import {
   InputGroupButton,
   InputGroupTextarea,
 } from "@/components/ui/input-group"
-import { Spinner } from "@/components/ui/spinner"
 
 type ChatComposerProps = {
   value: string
   onValueChange: (value: string) => void
   onSubmit: (value: string) => void
+  // Appelé quand on clique sur le bouton pendant une génération (`pending`).
+  onStop?: () => void
   pending?: boolean
   error?: string | null
 }
@@ -31,6 +37,7 @@ export function ChatComposer({
   value,
   onValueChange,
   onSubmit,
+  onStop,
   pending = false,
   error = null,
 }: ChatComposerProps) {
@@ -86,15 +93,16 @@ export function ChatComposer({
               <DropdownMenuItem>Gemini 3 Pro</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          {/* Pendant une génération, le bouton d'envoi devient un bouton stop. */}
           <InputGroupButton
-            type="submit"
+            type={pending ? "button" : "submit"}
             variant="default"
             size="icon-sm"
             className="ml-auto rounded-full"
-            aria-label="Send message"
-            disabled={pending}
+            aria-label={pending ? "Stop generating" : "Send message"}
+            onClick={pending ? onStop : undefined}
           >
-            {pending ? <Spinner /> : <ArrowUpIcon />}
+            {pending ? <SquareIcon className="fill-current" /> : <ArrowUpIcon />}
           </InputGroupButton>
         </InputGroupAddon>
       </InputGroup>
