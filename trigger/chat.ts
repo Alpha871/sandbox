@@ -1,9 +1,10 @@
 import { google } from "@ai-sdk/google"
 import { chat, upsertIncomingMessage } from "@trigger.dev/sdk/ai"
-import { createIdGenerator } from "ai"
+import { createIdGenerator, stepCountIs } from "ai"
 
 import { createGameSandbox } from "../lib/daytona/utils"
 import { gameInstructions } from "../lib/games/instructions"
+import { gameTools } from "../lib/games/tools"
 import {
   loadGameMessages,
   saveGameMessages,
@@ -50,11 +51,18 @@ export const gameChat = chat.agent({
     generateMessageId: createIdGenerator({ prefix: "msg", size: 16 }),
   },
 
-  run: async ({ messages, signal, streamText }) =>
+  // Déclarés ici ET repassés à `streamText` : sinon `toModelOutput` est perdu
+  // quand l'historique est reconverti aux tours suivants. Liés à la partie,
+  // donc à sa sandbox, par le `chatId`.
+  tools: ({ chatId }) => gameTools(chatId),
+
+  run: async ({ messages, tools, signal, streamText }) =>
     streamText({
       model: google("gemini-3.8-flash"),
       system: gameInstructions,
       messages,
+      tools,
+      stopWhen: stepCountIs(25),
       abortSignal: signal,
     }),
 })
