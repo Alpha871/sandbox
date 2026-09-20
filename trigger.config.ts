@@ -1,3 +1,4 @@
+import { additionalFiles } from "@trigger.dev/build/extensions/core";
 import { defineConfig } from "@trigger.dev/sdk";
 
 export default defineConfig({
@@ -19,4 +20,11 @@ export default defineConfig({
     },
   },
   dirs: ["trigger"],
+  build: {
+    extensions: [
+      // `lib/games/runtime` n'est importé nulle part : sans ceci, le déploiement
+      // ne l'embarque pas et `createGameSandbox` n'aurait rien à copier.
+      additionalFiles({ files: ["./lib/games/runtime/**"] }),
+    ],
+  },
 });

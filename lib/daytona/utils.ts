@@ -1,9 +1,22 @@
-import { SandboxState, type Sandbox } from "@daytona/sdk"
+import { readdir, readFile } from "node:fs/promises"
+import path from "node:path"
+
+import {
+  SandboxState,
+  type FileUpload,
+  type Sandbox,
+} from "@daytona/sdk"
 
 import { loadGameSandboxId, saveGameSandboxId } from "../../trigger/chat-store"
 import { daytona } from "./client"
 
 export const GAME_DIR = "/home/daytona/game"
+/**
+ * Fichiers posés dans `GAME_DIR` à la création de chaque sandbox. Relatif à la
+ * racine du projet : `additionalFiles` (trigger.config.ts) en conserve le
+ * chemin dans le build déployé, donc `process.cwd()` marche en dev comme en prod.
+ */
+const RUNTIME_DIR = path.join(process.cwd(), "lib/games/runtime")
 /** Port sur lequel le serveur de la partie sert `GAME_DIR`. */
 export const GAME_PORT = 3000
 
@@ -11,8 +24,45 @@ const HEALTH_CHECK_ATTEMPTS = 10
 const HEALTH_CHECK_DELAY_MS = 500
 
 /**
- * Crée la sandbox Daytona d'une partie, y pose un `index.html` minimal et
- * enregistre son id sur la partie. Si la partie en a déjà une, la renvoie sans
+ * Parcourt `RUNTIME_DIR` récursivement. Renvoie les fichiers à envoyer et les
+ * dossiers (chemins relatifs, séparés par `/`) : `uploadFiles` ne crée pas les
+ * dossiers vides, il faut donc les créer à part.
+ */
+async function readRuntimeDir(): Promise<{
+  files: FileUpload[]
+  folders: string[]
+}> {
+  const files: FileUpload[] = []
+  const folders: string[] = []
+
+  const walk = async (relativeDir: string) => {
+    const entries = await readdir(path.join(RUNTIME_DIR, relativeDir), {
+      withFileTypes: true,
+    })
+
+    for (const entry of entries) {
+      const relativePath = path.posix.join(relativeDir, entry.name)
+
+      if (entry.isDirectory()) {
+        folders.push(relativePath)
+        await walk(relativePath)
+      } else if (entry.isFile()) {
+        files.push({
+          source: await readFile(path.join(RUNTIME_DIR, relativePath)),
+          destination: `${GAME_DIR}/${relativePath}`,
+        })
+      }
+    }
+  }
+
+  await walk("")
+  return { files, folders }
+}
+
+/**
+ * Crée la sandbox Daytona d'une partie, y copie le contenu de
+ * `lib/games/runtime` (dont un `index.html` minimal) et enregistre son id sur
+ * la partie. Si la partie en a déjà une, la renvoie sans
  * en créer : une reprise de run ne doit pas laisser de sandbox orpheline
  * (facturée). La sandbox renvoyée n'est pas forcément démarrée.
  */
@@ -25,10 +75,13 @@ export async function createGameSandbox(
   const sandbox = await daytona.create({ labels: { gameId } })
 
   try {
-    await sandbox.fs.uploadFile(
-      Buffer.from("New game"),
-      `${GAME_DIR}/index.html`
-    )
+    const { files, folders } = await readRuntimeDir()
+
+    await sandbox.fs.createFolder(GAME_DIR, "755")
+    for (const folder of folders) {
+      await sandbox.fs.createFolder(`${GAME_DIR}/${folder}`, "755")
+    }
+    await sandbox.fs.uploadFiles(files)
     await saveGameSandboxId(gameId, sandbox.id)
   } catch (error) {
     // Sans id enregistré, personne ne pourrait la supprimer plus tard.

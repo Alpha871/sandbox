@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Fichiers copiés tels quels dans chaque nouvelle sandbox.
+    "lib/games/runtime/**",
   ]),
 ]);
 
