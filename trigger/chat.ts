@@ -3,6 +3,7 @@ import { chat, upsertIncomingMessage } from "@trigger.dev/sdk/ai"
 import { createIdGenerator } from "ai"
 
 import { createGameSandbox } from "../lib/daytona/utils"
+import { gameInstructions } from "../lib/games/instructions"
 import {
   loadGameMessages,
   saveGameMessages,
@@ -52,6 +53,7 @@ export const gameChat = chat.agent({
   run: async ({ messages, signal, streamText }) =>
     streamText({
       model: google("gemini-3.8-flash"),
+      system: gameInstructions,
       messages,
       abortSignal: signal,
     }),
