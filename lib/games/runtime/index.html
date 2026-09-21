@@ -1,1 +1,33 @@
-New game
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>New game</title>
+    <link rel="stylesheet" href="./style.css" />
+    <!-- No favicon file: an empty data URL avoids a 404 on every load. -->
+    <link rel="icon" href="data:," />
+
+    <!--
+      Three.js is vendored in ./vendor/three: no CDN, no build step.
+      The import map lets every module write `import * as THREE from "three"`
+      and `import { OrbitControls } from "three/addons/controls/OrbitControls.js"`.
+      It must stay before any module script.
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./vendor/three/three.module.js",
+          "three/addons/": "./vendor/three/addons/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <!-- The game lives in main.js: it creates the canvas and the HUD itself. -->
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

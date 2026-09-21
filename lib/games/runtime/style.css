@@ -11,5 +11,32 @@ body {
 }
 
 body {
-  font-family: system-ui, sans-serif;
+  overflow: hidden;
+  /* Same as the engine's default background: no flash before the first frame. */
+  background: #0b0d12;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* A game is not a page: no pull-to-refresh, no tap highlight, no text selection. */
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+canvas {
+  display: block;
+  outline: none;
+  /* The scene fades in instead of popping. */
+  animation: canvas-in 0.6s ease-out;
+}
+
+@keyframes canvas-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  canvas {
+    animation: none;
+  }
 }

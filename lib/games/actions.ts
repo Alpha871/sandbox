@@ -1,6 +1,5 @@
 "use server"
 
-import { google } from "@ai-sdk/google"
 import { auth } from "@clerk/nextjs/server"
 import { generateId, generateText } from "ai"
 import { refresh } from "next/cache"
@@ -8,6 +7,7 @@ import { redirect } from "next/navigation"
 
 import { db } from "@/lib/db"
 import { games } from "@/lib/db/schema"
+import { getTitleModel } from "@/lib/games/models"
 
 /** Longueur maximale d'un titre dérivé du prompt. */
 const TITLE_MAX_LENGTH = 60
@@ -43,7 +43,7 @@ function toTitle(prompt: string) {
 async function generateTitle(prompt: string) {
   try {
     const { text } = await generateText({
-      model: google("gemini-3.5-flash-lite"),
+      model: getTitleModel(),
       instructions:
         "Write a short title (max 6 words) for the game described by the user. " +
         "Reply with the title only, no quotes, no punctuation at the end.",

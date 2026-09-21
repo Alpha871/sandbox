@@ -1,9 +1,9 @@
-import { google } from "@ai-sdk/google"
 import { chat, upsertIncomingMessage } from "@trigger.dev/sdk/ai"
 import { createIdGenerator, stepCountIs } from "ai"
 
 import { createGameSandbox } from "../lib/daytona/utils"
 import { gameInstructions } from "../lib/games/instructions"
+import { getGameModel } from "../lib/games/models"
 import { gameTools } from "../lib/games/tools"
 import {
   loadGameMessages,
@@ -65,7 +65,7 @@ export const gameChat = chat.agent({
 
   run: async ({ messages, tools, signal, streamText }) =>
     streamText({
-      model: google("gemini-3.8-flash"),
+      model: getGameModel(),
       system: gameInstructions,
       messages,
       tools,

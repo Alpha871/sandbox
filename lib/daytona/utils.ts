@@ -9,14 +9,15 @@ import {
 
 import { loadGameSandboxId, saveGameSandboxId } from "../../trigger/chat-store"
 import { daytona } from "./client"
+import { resolveRuntimeDir } from "./runtime-dir"
 
 export const GAME_DIR = "/home/daytona/game"
 /**
- * Fichiers posés dans `GAME_DIR` à la création de chaque sandbox. Relatif à la
- * racine du projet : `additionalFiles` (trigger.config.ts) en conserve le
- * chemin dans le build déployé, donc `process.cwd()` marche en dev comme en prod.
+ * Fichiers posés dans `GAME_DIR` à la création de chaque sandbox : le kit de
+ * `lib/games/runtime`. Voir `resolveRuntimeDir` pour l'emplacement, qui diffère
+ * entre le développement et le build déployé.
  */
-const RUNTIME_DIR = path.join(process.cwd(), "lib/games/runtime")
+const RUNTIME_DIR = resolveRuntimeDir(process.cwd())
 /** Port sur lequel le serveur de la partie sert `GAME_DIR`. */
 export const GAME_PORT = 3000
 

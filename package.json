@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.69",
+    "@ai-sdk/openai": "^4.0.71",
     "@ai-sdk/otel": "^1.0.107",
     "@ai-sdk/react": "^4.0.102",
     "@base-ui/react": "^1.8.0",
@@ -61,6 +62,7 @@
     "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "^4",
+    "three": "^0.186.0",
     "trigger.dev": "^4.6.3",
     "typescript": "^5"
   }
