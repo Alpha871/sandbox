@@ -30,6 +30,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ThemeToggle } from "@/components/theme-toggle"
 import type { Game } from "@/lib/db/schema"
 
 export function AppSidebar({ games }: { games: Promise<Game[]> }) {
@@ -78,6 +79,9 @@ export function AppSidebar({ games }: { games: Promise<Game[]> }) {
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <ThemeToggle />
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton tooltip="Credits">
               <CoinsIcon />

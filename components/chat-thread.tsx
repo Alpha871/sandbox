@@ -2,8 +2,12 @@
 
 import { Chat, useChat } from "@ai-sdk/react"
 import { useTriggerChatTransport } from "@trigger.dev/sdk/chat/react"
-import { getToolName, isToolUIPart } from "ai"
-import type { DynamicToolUIPart, ToolUIPart } from "ai"
+import {
+  getToolName,
+  isToolUIPart,
+  lastAssistantMessageIsCompleteWithToolCalls,
+} from "ai"
+import type { DynamicToolUIPart, ToolUIPart, UIMessage } from "ai"
 import { CheckIcon, Loader2Icon, XIcon } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -14,6 +18,17 @@ import { ChatComposer } from "@/components/chat-composer"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
 import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker"
 import { Message, MessageAvatar, MessageContent } from "@/components/ui/message"
+import {
+  Questionnaire,
+  QuestionnaireActions,
+  QuestionnaireChoice,
+  QuestionnaireChoiceDescription,
+  QuestionnaireChoices,
+  QuestionnaireDescription,
+  QuestionnaireItem,
+  QuestionnaireSubmit,
+  QuestionnaireTitle,
+} from "@/components/ui/questionnaire"
 import {
   MessageScroller,
   MessageScrollerButton,
@@ -41,6 +56,67 @@ const TOOL_LABELS: Record<string, { active: string; done: string }> = {
   read_file: { active: "Reading", done: "Read" },
   list_files: { active: "Listing", done: "Listed" },
   delete_file: { active: "Deleting", done: "Deleted" },
+  ask_player: { active: "Preparing a question", done: "Asked a question" },
+}
+
+const ASK_PLAYER = "ask_player"
+
+// Miroir de l'`inputSchema` / `outputSchema` d'`ask_player` (lib/games/tools.ts).
+// Le fil n'est pas typé par l'agent : on valide à la main ce que le modèle a
+// écrit avant d'en faire une interface.
+type AskPlayerOption = { id: string; label: string; description: string }
+type AskPlayerInput = {
+  topic: string
+  question: string
+  options: AskPlayerOption[]
+}
+type AskPlayerAnswer = { id: string; label: string }
+
+// Ajoutée à chaque question par l'interface, pas par le modèle. Son `id` est
+// cité dans les instructions (lib/games/instructions/workflow.ts) : le
+// modèle sait alors qu'il doit trancher lui-même pour cet axe.
+const YOU_DECIDE: AskPlayerOption = {
+  id: "you_decide",
+  label: "You decide",
+  description: "Pick whatever fits the game best.",
+}
+
+function isAskPlayerInput(input: unknown): input is AskPlayerInput {
+  if (typeof input !== "object" || input === null) return false
+  const { topic, question, options } = input as Partial<AskPlayerInput>
+
+  return (
+    typeof topic === "string" &&
+    typeof question === "string" &&
+    Array.isArray(options) &&
+    options.length > 0 &&
+    options.every(
+      (option) =>
+        typeof option?.id === "string" && typeof option.label === "string"
+    )
+  )
+}
+
+function isAskPlayerAnswer(output: unknown): output is AskPlayerAnswer {
+  if (typeof output !== "object" || output === null) return false
+  const { id, label } = output as Partial<AskPlayerAnswer>
+  return typeof id === "string" && typeof label === "string"
+}
+
+// Une question est « ouverte » tant que l'appel attend sa réponse : le tour
+// est fini, la sandbox ne bouge pas, et on ne peut pas envoyer d'autre message
+// (le modèle refuserait un appel d'outil sans résultat).
+function hasOpenQuestion(messages: UIMessage[]): boolean {
+  const last = messages.at(-1)
+  return (
+    last?.role === "assistant" &&
+    last.parts.some(
+      (part) =>
+        isToolUIPart(part) &&
+        getToolName(part) === ASK_PLAYER &&
+        part.state === "input-available"
+    )
+  )
 }
 
 function toolStatus(part: ToolUIPart | DynamicToolUIPart): ToolStatus {
@@ -96,6 +172,94 @@ function ToolCallMarker({ part }: { part: ToolUIPart | DynamicToolUIPart }) {
   )
 }
 
+function AskPlayerQuestion({
+  input,
+  onAnswer,
+}: {
+  input: AskPlayerInput
+  onAnswer: (answer: AskPlayerAnswer) => void
+}) {
+  const [choice, setChoice] = useState<string | null>(null)
+  const options = [
+    ...input.options.filter(({ id }) => id !== YOU_DECIDE.id),
+    YOU_DECIDE,
+  ]
+
+  return (
+    <Questionnaire
+      className="rounded-xl border bg-card p-4"
+      shortcuts="numbers"
+      onSubmit={(event) => {
+        event.preventDefault()
+        const option = options.find(({ id }) => id === choice)
+        if (option) onAnswer({ id: option.id, label: option.label })
+      }}
+    >
+      <QuestionnaireItem name="answer" required>
+        <QuestionnaireTitle>{input.question}</QuestionnaireTitle>
+        <QuestionnaireDescription>Topic: {input.topic}</QuestionnaireDescription>
+        <QuestionnaireChoices>
+          {options.map((option) => (
+            <QuestionnaireChoice
+              key={option.id}
+              value={option.id}
+              onChange={() => setChoice(option.id)}
+            >
+              <span className="font-medium">{option.label}</span>
+              {option.description ? (
+                <QuestionnaireChoiceDescription>
+                  {option.description}
+                </QuestionnaireChoiceDescription>
+              ) : null}
+            </QuestionnaireChoice>
+          ))}
+        </QuestionnaireChoices>
+      </QuestionnaireItem>
+      <QuestionnaireActions>
+        <QuestionnaireSubmit disabled={choice === null}>Answer</QuestionnaireSubmit>
+      </QuestionnaireActions>
+    </Questionnaire>
+  )
+}
+
+// L'appel `ask_player` a trois vies : la question à choix (`input-available`,
+// en attente de la réponse), la réponse choisie (`output-available`), et un
+// simple marqueur le reste du temps (saisie en cours, erreur).
+function AskPlayerPart({
+  part,
+  onAnswer,
+}: {
+  part: ToolUIPart | DynamicToolUIPart
+  onAnswer: (toolCallId: string, answer: AskPlayerAnswer) => void
+}) {
+  if (part.state === "input-available" && isAskPlayerInput(part.input)) {
+    return (
+      <AskPlayerQuestion
+        input={part.input}
+        onAnswer={(answer) => onAnswer(part.toolCallId, answer)}
+      />
+    )
+  }
+
+  if (part.state === "output-available" && isAskPlayerAnswer(part.output)) {
+    const question = isAskPlayerInput(part.input) ? part.input.question : null
+
+    return (
+      <Marker data-status="done">
+        <MarkerIcon>
+          <CheckIcon />
+        </MarkerIcon>
+        <MarkerContent>
+          {question ? `${question} — ` : "Answered: "}
+          {part.output.label}
+        </MarkerContent>
+      </Marker>
+    )
+  }
+
+  return <ToolCallMarker part={part} />
+}
+
 export function ChatThread({ game, onTurnComplete }: ChatThreadProps) {
   const [message, setMessage] = useState("")
 
@@ -127,6 +291,9 @@ export function ChatThread({ game, onTurnComplete }: ChatThreadProps) {
         id: game.id,
         messages: game.messages,
         transport,
+        // `ask_player` n'a pas d'`execute` : la réponse de l'utilisateur
+        // (`addToolOutput`) complète l'appel et relance le tour toute seule.
+        sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
         // Signal transitoire émis par `onBeforeTurnComplete` (trigger/chat.ts).
         onData: (part) => {
           if (part.type === "data-preview-refresh") {
@@ -142,6 +309,7 @@ export function ChatThread({ game, onTurnComplete }: ChatThreadProps) {
   const {
     messages,
     sendMessage,
+    addToolOutput,
     stop: stopChat,
     status,
     error,
@@ -151,6 +319,10 @@ export function ChatThread({ game, onTurnComplete }: ChatThreadProps) {
   })
 
   const pending = status === "submitted" || status === "streaming"
+  const questionOpen = !pending && hasOpenQuestion(messages)
+  // Vrai après un envoi refusé pendant une question ouverte ; l'astuce
+  // disparaît d'elle-même quand la question reçoit sa réponse.
+  const [triedWhileOpen, setTriedWhileOpen] = useState(false)
 
   // La sandbox est créée par le run Trigger.dev, après le rendu serveur :
   // `game.sandboxId` est périmé jusqu'à la fin du tour. On recharge alors les
@@ -183,9 +355,17 @@ export function ChatThread({ game, onTurnComplete }: ChatThreadProps) {
   function handleSubmit(value: string) {
     const text = value.trim()
     if (!text || pending) return
+    if (questionOpen) {
+      setTriedWhileOpen(true)
+      return
+    }
 
     sendMessage({ text })
     setMessage("")
+  }
+
+  function handleAnswer(toolCallId: string, answer: AskPlayerAnswer) {
+    addToolOutput({ tool: ASK_PLAYER, toolCallId, output: answer })
   }
 
   // Après un `resume`, le `stop()` de `useChat` ne ferme que le flux local :
@@ -219,6 +399,15 @@ export function ChatThread({ game, onTurnComplete }: ChatThreadProps) {
                         const key = `${id}-${index}`
 
                         if (isToolUIPart(part)) {
+                          if (getToolName(part) === ASK_PLAYER) {
+                            return (
+                              <AskPlayerPart
+                                key={key}
+                                part={part}
+                                onAnswer={handleAnswer}
+                              />
+                            )
+                          }
                           return <ToolCallMarker key={key} part={part} />
                         }
                         if (part.type === "text" && part.text) {
@@ -250,7 +439,12 @@ export function ChatThread({ game, onTurnComplete }: ChatThreadProps) {
           onSubmit={handleSubmit}
           onStop={handleStop}
           pending={pending}
-          error={error?.message}
+          error={
+            error?.message ??
+            (triedWhileOpen && questionOpen
+              ? "Answer the question above first."
+              : null)
+          }
         />
       </div>
     </div>

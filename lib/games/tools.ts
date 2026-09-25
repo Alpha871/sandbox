@@ -25,6 +25,18 @@ function resolveGamePath(path: string): string {
   return resolved
 }
 
+/** Les axes d'une partie sur lesquels le modèle peut interroger l'utilisateur. */
+const ASK_USER_TOPICS = [
+  "loop",
+  "goal",
+  "world",
+  "look",
+  "feel",
+  "controls",
+  "difficulty",
+  "audio",
+] as const
+
 function countOccurrences(text: string, search: string): number {
   return text.split(search).length - 1
 }
@@ -142,6 +154,39 @@ export function gameTools(gameId: string) {
           size: entry.size,
         }))
       },
+    }),
+
+    // Pas d'`execute`, volontairement : `streamText` s'arrête sur l'appel, le
+    // tour se termine, et la réponse revient plus tard du client via
+    // `addToolOutput` (human-in-the-loop). `outputSchema` type cette réponse.
+    ask_player: tool({
+      description: `Ask the player ONE multiple-choice question about ONE topic of a new game that their request has not decided yet. Call it once per open topic (loop, goal, world, look, feel, controls, difficulty, audio), one call at a time, until every topic is settled; do not ask the same topic twice. A "You decide" option (id "you_decide") is added to every question automatically, so never write one yourself; if the player picks it, choose for them. Pick the "topic" first, then write a question about that single area, with 2 to 4 options. The turn pauses until the player picks one; you then receive the chosen option's id and label. Call it alone, with no other tool call in the same step.`,
+      inputSchema: z.object({
+        topic: z
+          .enum(ASK_USER_TOPICS)
+          .describe(
+            "The area the question is about, chosen before writing it: loop (core gameplay cycle), goal (win/lose conditions), world (setting, level layout), look (art style, colors), feel (game feel, pacing, juice), controls, difficulty, audio."
+          ),
+        question: z
+          .string()
+          .describe("The question, about the chosen topic only. One sentence."),
+        options: z
+          .array(
+            z.object({
+              id: z.string().describe('Short stable id, e.g. "arcade".'),
+              label: z.string().describe("Short text shown on the choice."),
+              description: z
+                .string()
+                .describe("One sentence on what picking this option means."),
+            })
+          )
+          .min(2)
+          .max(4),
+      }),
+      outputSchema: z.object({
+        id: z.string().describe("The id of the option the user chose."),
+        label: z.string().describe("The label of the option the user chose."),
+      }),
     }),
 
     delete_file: tool({

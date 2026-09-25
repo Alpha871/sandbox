@@ -1,5 +1,5 @@
 import { chat, upsertIncomingMessage } from "@trigger.dev/sdk/ai"
-import { createIdGenerator, stepCountIs } from "ai"
+import { createIdGenerator, isToolUIPart, stepCountIs } from "ai"
 
 import { createGameSandbox } from "../lib/daytona/utils"
 import { gameInstructions } from "../lib/games/instructions"
@@ -26,8 +26,21 @@ export const gameChat = chat.agent({
     }
 
     // Le modèle ne répond qu'à un message utilisateur : un message
-    // `assistant` forgé côté client ne doit pas entrer dans le fil.
-    if (trigger === "submit-message" && stored.at(-1)?.role !== "user") {
+    // `assistant` forgé côté client ne doit pas entrer dans le fil. Seule
+    // exception, la réponse à `ask_player` : le fil se termine alors par le
+    // message assistant dont l'appel attend son résultat (le runtime n'y
+    // superpose que l'avancée de l'état de l'outil, rien d'autre).
+    const last = stored.at(-1)
+    const answersQuestion =
+      last?.role === "assistant" &&
+      last.parts.some(
+        (part) => isToolUIPart(part) && part.state === "input-available"
+      ) &&
+      incomingMessages.some(
+        (message) => message.role === "assistant" && message.id === last.id
+      )
+
+    if (trigger === "submit-message" && last?.role !== "user" && !answersQuestion) {
       throw new Error("Invalid message")
     }
 
