@@ -1,18 +1,25 @@
 import { chat, upsertIncomingMessage } from "@trigger.dev/sdk/ai"
 import { createIdGenerator, isToolUIPart, stepCountIs } from "ai"
+import { z } from "zod"
 
 import { createGameSandbox } from "../lib/daytona/utils"
+import { gameStreamTextSettings } from "../lib/games/agent"
 import { gameInstructions } from "../lib/games/instructions"
-import { getGameModel } from "../lib/games/models"
-import { gameTools } from "../lib/games/tools"
 import {
-  loadGameMessages,
-  saveGameMessages,
-  saveGameTurn,
-} from "./chat-store"
+  DEFAULT_GAME_MODEL_ID,
+  GAME_MODEL_IDS,
+} from "../lib/games/model-catalog"
+import { gameTools } from "../lib/games/tools"
+import { loadGameMessages, saveGameMessages, saveGameTurn } from "./chat-store"
 
 export const gameChat = chat.agent({
   id: "game-chat",
+
+  // `model` reste optionnel : un ancien client (ou un appel direct sans
+  // sélecteur) n'envoie rien, et le run retombe alors sur le défaut.
+  clientDataSchema: z.object({
+    model: z.enum(GAME_MODEL_IDS).optional(),
+  }),
 
   // La base reste la source de vérité du fil : on la relit à chaque tour et
   // on ignore la copie du client, sauf le nouveau message utilisateur.
@@ -40,7 +47,11 @@ export const gameChat = chat.agent({
         (message) => message.role === "assistant" && message.id === last.id
       )
 
-    if (trigger === "submit-message" && last?.role !== "user" && !answersQuestion) {
+    if (
+      trigger === "submit-message" &&
+      last?.role !== "user" &&
+      !answersQuestion
+    ) {
       throw new Error("Invalid message")
     }
 
@@ -59,7 +70,12 @@ export const gameChat = chat.agent({
     writer.write({ type: "data-preview-refresh", data: {}, transient: true })
   },
 
-  onTurnComplete: async ({ chatId, uiMessages, chatAccessToken, lastEventId }) => {
+  onTurnComplete: async ({
+    chatId,
+    uiMessages,
+    chatAccessToken,
+    lastEventId,
+  }) => {
     await saveGameTurn(chatId, uiMessages, {
       publicAccessToken: chatAccessToken,
       lastEventId,
@@ -76,9 +92,9 @@ export const gameChat = chat.agent({
   // donc à sa sandbox, par le `chatId`.
   tools: ({ chatId }) => gameTools(chatId),
 
-  run: async ({ messages, tools, signal, streamText }) =>
+  run: async ({ messages, tools, clientData, signal, streamText }) =>
     streamText({
-      model: getGameModel(),
+      ...gameStreamTextSettings(clientData?.model ?? DEFAULT_GAME_MODEL_ID),
       system: gameInstructions,
       messages,
       tools,

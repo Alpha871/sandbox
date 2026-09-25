@@ -6,6 +6,7 @@ import { ChatComposer } from "@/components/chat-composer"
 import { Button } from "@/components/ui/button"
 import { createGame, type CreateGameState } from "@/lib/games/actions"
 import { suggestions } from "@/lib/games/suggestions"
+import { usePreferredModel } from "@/lib/games/use-preferred-model"
 
 const initialState: CreateGameState = { status: "idle", message: null }
 
@@ -17,6 +18,9 @@ const initialState: CreateGameState = { status: "idle", message: null }
 export function NewGameComposer() {
   const [state, formAction, pending] = useActionState(createGame, initialState)
   const [prompt, setPrompt] = useState("")
+  // Le choix n'est pas envoyé à `createGame` : il est déjà dans `localStorage`
+  // au moment où `ChatThread` (même hook) monte sur la partie créée.
+  const [modelId, setModelId] = usePreferredModel()
 
   function submitPrompt(value: string) {
     const formData = new FormData()
@@ -34,6 +38,8 @@ export function NewGameComposer() {
         onValueChange={setPrompt}
         onSubmit={submitPrompt}
         pending={pending}
+        modelId={modelId}
+        onModelChange={setModelId}
         error={state.status === "error" ? state.message : null}
       />
       <div className="flex flex-wrap items-center justify-center gap-2">

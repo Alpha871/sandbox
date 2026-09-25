@@ -20,6 +20,7 @@ import {
   InputGroupButton,
   InputGroupTextarea,
 } from "@/components/ui/input-group"
+import { GAME_MODELS, type GameModelId } from "@/lib/games/model-catalog"
 
 type ChatComposerProps = {
   value: string
@@ -29,6 +30,11 @@ type ChatComposerProps = {
   onStop?: () => void
   pending?: boolean
   error?: string | null
+  // Absents sur le composer d'accueil (`new-game-composer.tsx`) : la partie
+  // n'existe pas encore, donc rien ne consomme ce choix. Le sélecteur ne
+  // s'affiche alors pas plutôt que de proposer un choix sans effet.
+  modelId?: GameModelId
+  onModelChange?: (id: GameModelId) => void
 }
 
 // Composant contrôlé : le parent possède la valeur et décide quoi faire à
@@ -40,7 +46,13 @@ export function ChatComposer({
   onStop,
   pending = false,
   error = null,
+  modelId,
+  onModelChange,
 }: ChatComposerProps) {
+  const selectedModel = modelId
+    ? (GAME_MODELS.find((model) => model.id === modelId) ?? GAME_MODELS[0])
+    : null
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     // `requestSubmit()` passe outre le bouton désactivé : on bloque ici un
@@ -78,21 +90,27 @@ export function ChatComposer({
           aria-invalid={Boolean(error)}
         />
         <InputGroupAddon align="block-end">
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={<InputGroupButton variant="ghost" size="sm" />}
-            >
-              <GripIcon />
-              Kimi K3
-              <ChevronDownIcon />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem>Kimi K3</DropdownMenuItem>
-              <DropdownMenuItem>Claude Opus 5</DropdownMenuItem>
-              <DropdownMenuItem>GPT-5.2</DropdownMenuItem>
-              <DropdownMenuItem>Gemini 3 Pro</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {selectedModel && onModelChange ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={<InputGroupButton variant="ghost" size="sm" />}
+              >
+                <GripIcon />
+                {selectedModel.name}
+                <ChevronDownIcon />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                {GAME_MODELS.map((model) => (
+                  <DropdownMenuItem
+                    key={model.id}
+                    onClick={() => onModelChange(model.id)}
+                  >
+                    {model.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
           {/* Pendant une génération, le bouton d'envoi devient un bouton stop. */}
           <InputGroupButton
             type={pending ? "button" : "submit"}
@@ -102,7 +120,11 @@ export function ChatComposer({
             aria-label={pending ? "Stop generating" : "Send message"}
             onClick={pending ? onStop : undefined}
           >
-            {pending ? <SquareIcon className="fill-current" /> : <ArrowUpIcon />}
+            {pending ? (
+              <SquareIcon className="fill-current" />
+            ) : (
+              <ArrowUpIcon />
+            )}
           </InputGroupButton>
         </InputGroupAddon>
       </InputGroup>

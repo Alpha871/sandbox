@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/message-scroller"
 import type { Game } from "@/lib/db/schema"
 import { mintChatAccessToken, startChatSession } from "@/lib/games/chat-actions"
+import { usePreferredModel } from "@/lib/games/use-preferred-model"
 import type { gameChat } from "@/trigger/chat"
 
 type ChatThreadProps = {
@@ -197,7 +198,9 @@ function AskPlayerQuestion({
     >
       <QuestionnaireItem name="answer" required>
         <QuestionnaireTitle>{input.question}</QuestionnaireTitle>
-        <QuestionnaireDescription>Topic: {input.topic}</QuestionnaireDescription>
+        <QuestionnaireDescription>
+          Topic: {input.topic}
+        </QuestionnaireDescription>
         <QuestionnaireChoices>
           {options.map((option) => (
             <QuestionnaireChoice
@@ -216,7 +219,9 @@ function AskPlayerQuestion({
         </QuestionnaireChoices>
       </QuestionnaireItem>
       <QuestionnaireActions>
-        <QuestionnaireSubmit disabled={choice === null}>Answer</QuestionnaireSubmit>
+        <QuestionnaireSubmit disabled={choice === null}>
+          Answer
+        </QuestionnaireSubmit>
       </QuestionnaireActions>
     </Questionnaire>
   )
@@ -262,6 +267,10 @@ function AskPlayerPart({
 
 export function ChatThread({ game, onTurnComplete }: ChatThreadProps) {
   const [message, setMessage] = useState("")
+  // Envoyé comme `clientData` : lu côté agent (trigger/chat.ts) au tour
+  // suivant, pas seulement à la création de la session. Initialisé à la
+  // préférence enregistrée par `NewGameComposer` (ou un chat précédent).
+  const [modelId, setModelId] = usePreferredModel()
 
   // Le `Chat` n'est créé qu'une fois : son `onData` lit la dernière prop.
   const onTurnCompleteRef = useRef(onTurnComplete)
@@ -278,6 +287,7 @@ export function ChatThread({ game, onTurnComplete }: ChatThreadProps) {
     startSession: ({ chatId, clientData }) =>
       startChatSession({ chatId, clientData }),
     sessions: game.chatSession ? { [game.id]: game.chatSession } : undefined,
+    clientData: { model: modelId },
   })
 
   // Une conversation par partie, reprise depuis le fil sauvegardé. Le `Chat`
@@ -439,6 +449,8 @@ export function ChatThread({ game, onTurnComplete }: ChatThreadProps) {
           onSubmit={handleSubmit}
           onStop={handleStop}
           pending={pending}
+          modelId={modelId}
+          onModelChange={setModelId}
           error={
             error?.message ??
             (triedWhileOpen && questionOpen

@@ -27,6 +27,13 @@
     </script>
   </head>
   <body>
+    <!--
+      Plain script, loaded before main.js: it runs synchronously and blocks
+      the parser, so it is already listening for errors before main.js (a
+      module script) is even requested — a syntax error in main.js still
+      gets reported to the parent app. See report.js for the protocol.
+    -->
+    <script src="./report.js"></script>
     <!-- The game lives in main.js: it creates the canvas and the HUD itself. -->
     <script type="module" src="./main.js"></script>
   </body>
