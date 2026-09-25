@@ -26,5 +26,10 @@ export default defineConfig({
       // ne l'embarque pas et `createGameSandbox` n'aurait rien à copier.
       additionalFiles({ files: ["./lib/games/runtime/**"] }),
     ],
+    // `@daytona/sdk` charge `form-data` via un `require` calculé au runtime
+    // (createRequire), invisible pour l'analyse statique d'esbuild : le
+    // module n'est ni bundlé ni auto-détecté comme external, et manque donc
+    // au déploiement (upload de fichiers en échec en prod uniquement).
+    external: ["form-data"],
   },
 });

@@ -43,7 +43,7 @@ export function NewGameComposer() {
         error={state.status === "error" ? state.message : null}
       />
       <div className="flex flex-wrap items-center justify-center gap-2">
-        {suggestions.map(({ icon: Icon, label }) => (
+        {suggestions.map(({ icon: Icon, label, prompt: suggestionPrompt }) => (
           <Button
             key={label}
             type="button"
@@ -51,7 +51,7 @@ export function NewGameComposer() {
             size="sm"
             className="rounded-full font-normal text-muted-foreground"
             disabled={pending}
-            onClick={() => submitPrompt(label)}
+            onClick={() => submitPrompt(suggestionPrompt)}
           >
             <Icon data-icon="inline-start" />
             {label}

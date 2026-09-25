@@ -24,12 +24,14 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { Skeleton } from "@/components/ui/skeleton"
+import { GameActionsMenu } from "@/components/game-actions-menu"
 import { ThemeToggle } from "@/components/theme-toggle"
 import type { Game } from "@/lib/db/schema"
 import { formatDollars } from "@/lib/billing/format"
@@ -162,6 +164,10 @@ function RecentGames({ games }: { games: Promise<Game[]> }) {
               <MessageSquareIcon />
               <span>{game.title}</span>
             </SidebarMenuButton>
+            <GameActionsMenu
+              game={game}
+              trigger={<SidebarMenuAction showOnHover />}
+            />
           </SidebarMenuItem>
         ))}
       </SidebarMenu>

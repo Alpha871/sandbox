@@ -313,8 +313,8 @@ export function ChatThread({ game, onTurnComplete }: ChatThreadProps) {
       })
   )
   // Le message utilisateur est enregistré dès le début du tour : un fil qui
-  // se termine par lui et dont la session existe déjà a un tour en cours ou
-  // interrompu. On reprend son flux plutôt que de renvoyer le message.
+  // se termine par lui et n'a pas encore de session attend sa toute première
+  // réponse (voir l'effet plus bas, qui la demande).
   const awaitingAnswer = game.messages.at(-1)?.role === "user"
   const {
     messages,
@@ -325,7 +325,15 @@ export function ChatThread({ game, onTurnComplete }: ChatThreadProps) {
     error,
   } = useChat({
     chat,
-    resume: awaitingAnswer && game.chatSession !== null,
+    // Une session existante veut dire un tour en cours ou interrompu à
+    // reprendre — que le fil se termine par un message utilisateur ou par un
+    // appel `ask_player` tout juste répondu (`addToolOutput` ne fait pas
+    // passer le dernier message à `role: "user"` ; il complète l'appel d'outil
+    // sur le message assistant existant). Restreindre à `awaitingAnswer`
+    // ratait ce second cas : le fil restait figé sur la question déjà
+    // répondue après un rechargement, sans jamais se reconnecter au tour de
+    // continuation lancé en arrière-plan.
+    resume: game.chatSession !== null,
   })
 
   const pending = status === "submitted" || status === "streaming"

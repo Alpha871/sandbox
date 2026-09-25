@@ -230,8 +230,10 @@ export async function deleteGameAction(
   }
 
   // Re-rend `app/(app)/layout.tsx` : la sidebar retire la partie supprimée.
+  // Pas de `redirect` ici : cette action est déclenchée aussi bien depuis la
+  // sidebar (une autre partie que celle affichée) que depuis la page de la
+  // partie elle-même. C'est à l'appelant de décider s'il faut naviguer.
   refresh()
 
-  // Hors du try : `redirect` lève une exception gérée par Next.
-  redirect("/")
+  return { status: "idle", message: null }
 }
