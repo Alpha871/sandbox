@@ -10,10 +10,25 @@ import {
   GAME_MODEL_IDS,
 } from "../lib/games/model-catalog"
 import { gameTools } from "../lib/games/tools"
-import { loadGameMessages, saveGameMessages, saveGameTurn } from "./chat-store"
+import {
+  loadGameMessages,
+  loadGameOrgId,
+  saveGameMessages,
+  saveGameTurn,
+} from "./chat-store"
+import { assertOrgHasCredits } from "./credits"
+
+// L'organisation propriétaire de la partie : résolue une fois par process
+// dans `onBoot` (pas dans `onChatStart`, qui saute les runs de continuation),
+// puis relue dans `onChatStart`/`onTurnStart` sans requête supplémentaire.
+const orgContext = chat.local<{ orgId: string }>({ id: "orgContext" })
 
 export const gameChat = chat.agent({
   id: "game-chat",
+
+  onBoot: async ({ chatId }) => {
+    orgContext.init({ orgId: await loadGameOrgId(chatId) })
+  },
 
   // `model` reste optionnel : un ancien client (ou un appel direct sans
   // sélecteur) n'envoie rien, et le run retombe alors sur le défaut.
@@ -59,8 +74,18 @@ export const gameChat = chat.agent({
   },
 
   // Une fois par partie, au premier message : la sandbox vit autant qu'elle.
+  // Le crédit est vérifié avant de la créer, pas après : une organisation à
+  // sec ne doit pas payer une sandbox qu'elle ne pourra pas utiliser.
   onChatStart: async ({ chatId }) => {
+    await assertOrgHasCredits(orgContext.orgId)
     await createGameSandbox(chatId)
+  },
+
+  // À chaque tour, y compris le premier (après `onChatStart`) : une
+  // organisation qui épuise son crédit en cours de partie est bloquée dès le
+  // tour suivant, pas seulement à l'ouverture du chat.
+  onTurnStart: async () => {
+    await assertOrgHasCredits(orgContext.orgId)
   },
 
   // Les tools ont fini d'écrire dans la sandbox mais le flux est encore

@@ -1,24 +1,8 @@
 import type { UIMessage } from "ai"
 import { eq } from "drizzle-orm"
-import { drizzle } from "drizzle-orm/node-postgres"
-import { Pool } from "pg"
 
 import { games, type GameChatSession } from "../lib/db/schema"
-
-// Le worker Trigger.dev n'est pas Next : ni `server-only`, ni Clerk, ni
-// `lib/db`. Client créé une fois par process, un run n'exécute ses requêtes
-// qu'en séquence (voir la doc « Database connections »).
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 1,
-  connectionTimeoutMillis: 5_000,
-})
-
-// Une connexion inactive peut échouer en asynchrone : sans handler,
-// l'événement `error` fait tomber le worker.
-pool.on("error", (error) => console.error("[chat-store] pool error", error))
-
-const db = drizzle(pool)
+import { db } from "./db"
 
 /** Fil stocké d'une partie. Lève si elle n'existe pas : `createGame` la crée. */
 export async function loadGameMessages(id: string): Promise<UIMessage[]> {
@@ -33,6 +17,25 @@ export async function loadGameMessages(id: string): Promise<UIMessage[]> {
   }
 
   return game.messages
+}
+
+/**
+ * Organisation propriétaire de la partie, comme `getGame` côté Next mais
+ * sans `auth()` : le worker n'a pas de contexte Clerk, `chatId` (= id de la
+ * partie) est la seule clé disponible. Lève si elle n'existe pas.
+ */
+export async function loadGameOrgId(id: string): Promise<string> {
+  const [game] = await db
+    .select({ orgId: games.orgId })
+    .from(games)
+    .where(eq(games.id, id))
+    .limit(1)
+
+  if (!game) {
+    throw new Error(`Game ${id} not found`)
+  }
+
+  return game.orgId
 }
 
 /** Sandbox Daytona de la partie, `null` si elle n'a pas encore été créée. */
