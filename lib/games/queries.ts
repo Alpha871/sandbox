@@ -67,6 +67,43 @@ export async function getGame(id: string): Promise<Game | null> {
 }
 
 /**
+ * Renomme une partie de l'organisation active. Sans effet si elle n'existe
+ * pas ou appartient à une autre organisation.
+ */
+export async function renameGame(id: string, title: string): Promise<void> {
+  const { orgId } = await auth()
+
+  if (!orgId || !UUID_PATTERN.test(id)) {
+    return
+  }
+
+  await db
+    .update(games)
+    .set({ title })
+    .where(and(eq(games.id, id), eq(games.orgId, orgId)))
+}
+
+/**
+ * Supprime une partie de l'organisation active et renvoie la ligne
+ * supprimée — son `sandboxId` sert à nettoyer la sandbox Daytona associée —
+ * ou `null` si elle n'existe pas ou appartient à une autre organisation.
+ */
+export async function deleteGame(id: string): Promise<Game | null> {
+  const { orgId } = await auth()
+
+  if (!orgId || !UUID_PATTERN.test(id)) {
+    return null
+  }
+
+  const [game] = await db
+    .delete(games)
+    .where(and(eq(games.id, id), eq(games.orgId, orgId)))
+    .returning()
+
+  return game ?? null
+}
+
+/**
  * Enregistre la session Trigger.dev d'une partie qui n'en a pas encore. Sans
  * effet si une session existe déjà : l'écraser effacerait son `lastEventId`,
  * le curseur qui évite de rejouer la réponse déjà affichée.

@@ -7,7 +7,9 @@ import { redirect } from "next/navigation"
 
 import { db } from "@/lib/db"
 import { games } from "@/lib/db/schema"
+import { deleteGameSandbox } from "@/lib/daytona/utils"
 import { getTitleModel } from "@/lib/games/models"
+import { deleteGame, renameGame } from "@/lib/games/queries"
 
 /** Longueur maximale d'un titre dérivé du prompt. */
 const TITLE_MAX_LENGTH = 60
@@ -128,4 +130,108 @@ export async function createGame(
 
   // Hors du try : `redirect` lève une exception gérée par Next.
   redirect(`/games/${gameId}`)
+}
+
+export type RenameGameState = {
+  status: "idle" | "error"
+  message: string | null
+}
+
+export async function renameGameAction(
+  _previousState: RenameGameState,
+  formData: FormData
+): Promise<RenameGameState> {
+  // Une Server Action est joignable par POST direct : on revérifie la session
+  // ici plutôt que de se reposer sur le rendu de la page.
+  const { orgId } = await auth()
+
+  if (!orgId) {
+    return {
+      status: "error",
+      message: "Select an organization before renaming a game.",
+    }
+  }
+
+  const id = readField(formData, "id")
+  const title = readField(formData, "title")
+
+  if (!title) {
+    return { status: "error", message: "Give this game a title." }
+  }
+
+  if (title.length > TITLE_MAX_LENGTH) {
+    return {
+      status: "error",
+      message: `Keep the title under ${TITLE_MAX_LENGTH} characters.`,
+    }
+  }
+
+  try {
+    await renameGame(id, title)
+  } catch (error) {
+    console.error("[games] renameGame a échoué", error)
+
+    return {
+      status: "error",
+      message: "Couldn't rename the game. Check your connection and try again.",
+    }
+  }
+
+  // Re-rend `app/(app)/layout.tsx` : la sidebar affiche le nouveau titre.
+  refresh()
+
+  return { status: "idle", message: null }
+}
+
+export type DeleteGameState = {
+  status: "idle" | "error"
+  message: string | null
+}
+
+export async function deleteGameAction(
+  _previousState: DeleteGameState,
+  formData: FormData
+): Promise<DeleteGameState> {
+  // Une Server Action est joignable par POST direct : on revérifie la session
+  // ici plutôt que de se reposer sur le rendu de la page.
+  const { orgId } = await auth()
+
+  if (!orgId) {
+    return {
+      status: "error",
+      message: "Select an organization before deleting a game.",
+    }
+  }
+
+  const id = readField(formData, "id")
+  let sandboxId: string | null
+
+  try {
+    const game = await deleteGame(id)
+
+    if (!game) {
+      return { status: "error", message: "This game is already gone." }
+    }
+
+    sandboxId = game.sandboxId
+  } catch (error) {
+    console.error("[games] deleteGame a échoué", error)
+
+    return {
+      status: "error",
+      message: "Couldn't delete the game. Check your connection and try again.",
+    }
+  }
+
+  // Best-effort : une sandbox orpheline coûte, mais ne doit pas empêcher la
+  // suppression de la partie, déjà actée en base.
+  if (sandboxId) {
+    await deleteGameSandbox(sandboxId)
+  }
+
+  // Re-rend `app/(app)/layout.tsx` : la sidebar retire la partie supprimée.
+  refresh()
+
+  // Hors du try : `redirect` lève une exception gérée par Next.
+  redirect("/")
 }

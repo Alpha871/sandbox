@@ -93,6 +93,20 @@ export async function createGameSandbox(
   return { sandbox }
 }
 
+/**
+ * Supprime la sandbox Daytona d'une partie supprimée. Best-effort : une
+ * sandbox déjà absente côté Daytona ne doit pas empêcher la suppression de
+ * la partie, déjà actée en base au moment de l'appel.
+ */
+export async function deleteGameSandbox(sandboxId: string): Promise<void> {
+  await daytona
+    .get(sandboxId)
+    .then((sandbox) => sandbox.delete())
+    .catch((error) => {
+      console.error("[daytona] deleteGameSandbox a échoué", error)
+    })
+}
+
 async function ensureStarted(sandbox: Sandbox): Promise<{ sandbox: Sandbox }> {
   // Une sandbox inactive est arrêtée par Daytona ; son disque est conservé.
   if (sandbox.state !== SandboxState.STARTED) {
