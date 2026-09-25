@@ -32,8 +32,15 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { ThemeToggle } from "@/components/theme-toggle"
 import type { Game } from "@/lib/db/schema"
+import { formatDollars } from "@/lib/billing/format"
 
-export function AppSidebar({ games }: { games: Promise<Game[]> }) {
+export function AppSidebar({
+  games,
+  credits,
+}: {
+  games: Promise<Game[]>
+  credits: Promise<bigint>
+}) {
   const pathname = usePathname()
 
   return (
@@ -91,7 +98,9 @@ export function AppSidebar({ games }: { games: Promise<Game[]> }) {
               <CoinsIcon />
               <span>Credits</span>
             </SidebarMenuButton>
-            <SidebarMenuBadge>$1.00</SidebarMenuBadge>
+            <Suspense fallback={<CreditsBadgeSkeleton />}>
+              <CreditsBadge credits={credits} />
+            </Suspense>
           </SidebarMenuItem>
         </SidebarMenu>
         <div className="flex items-center justify-between gap-2 px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
@@ -207,6 +216,20 @@ function RecentGamesPopover({
         ))}
       </PopoverContent>
     </Popover>
+  )
+}
+
+function CreditsBadge({ credits }: { credits: Promise<bigint> }) {
+  const balance = use(credits)
+
+  return <SidebarMenuBadge>{formatDollars(balance)}</SidebarMenuBadge>
+}
+
+function CreditsBadgeSkeleton() {
+  return (
+    <SidebarMenuBadge>
+      <Skeleton className="h-3 w-8" />
+    </SidebarMenuBadge>
   )
 }
 
