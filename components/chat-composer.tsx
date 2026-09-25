@@ -1,26 +1,16 @@
 "use client"
 
-import {
-  ArrowUpIcon,
-  ChevronDownIcon,
-  GripIcon,
-  SquareIcon,
-} from "lucide-react"
+import { ArrowUpIcon, SquareIcon } from "lucide-react"
 import type { FormEvent, KeyboardEvent } from "react"
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { ModelPicker } from "@/components/model-picker"
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupTextarea,
 } from "@/components/ui/input-group"
-import { GAME_MODELS, type GameModelId } from "@/lib/games/model-catalog"
+import type { GameModelId } from "@/lib/games/model-catalog"
 
 type ChatComposerProps = {
   value: string
@@ -49,10 +39,6 @@ export function ChatComposer({
   modelId,
   onModelChange,
 }: ChatComposerProps) {
-  const selectedModel = modelId
-    ? (GAME_MODELS.find((model) => model.id === modelId) ?? GAME_MODELS[0])
-    : null
-
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     // `requestSubmit()` passe outre le bouton désactivé : on bloque ici un
@@ -90,26 +76,8 @@ export function ChatComposer({
           aria-invalid={Boolean(error)}
         />
         <InputGroupAddon align="block-end">
-          {selectedModel && onModelChange ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={<InputGroupButton variant="ghost" size="sm" />}
-              >
-                <GripIcon />
-                {selectedModel.name}
-                <ChevronDownIcon />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                {GAME_MODELS.map((model) => (
-                  <DropdownMenuItem
-                    key={model.id}
-                    onClick={() => onModelChange(model.id)}
-                  >
-                    {model.name}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+          {modelId && onModelChange ? (
+            <ModelPicker modelId={modelId} onModelChange={onModelChange} />
           ) : null}
           {/* Pendant une génération, le bouton d'envoi devient un bouton stop. */}
           <InputGroupButton
