@@ -83,7 +83,11 @@ export function AppSidebar({ games }: { games: Promise<Game[]> }) {
             <ThemeToggle />
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Credits">
+            <SidebarMenuButton
+              isActive={pathname === "/billing"}
+              tooltip="Credits"
+              render={<Link href="/billing" />}
+            >
               <CoinsIcon />
               <span>Credits</span>
             </SidebarMenuButton>
