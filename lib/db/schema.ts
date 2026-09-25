@@ -1,10 +1,12 @@
 import type { UIMessage } from "ai"
 import {
+  bigint,
   index,
   jsonb,
   pgTable,
   text,
   timestamp,
+  unique,
   uuid,
 } from "drizzle-orm/pg-core"
 
@@ -46,3 +48,23 @@ export const games = pgTable(
 
 export type Game = typeof games.$inferSelect
 export type NewGame = typeof games.$inferInsert
+
+export const creditLedger = pgTable(
+  "credit_ledger",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Clerk `org_id` — Clerk reste la source de vérité des identités. */
+    orgId: text("org_id").notNull(),
+    /** Ce que représente la ligne, ex. `"step:<responseId>"`. */
+    entryKey: text("entry_key").notNull(),
+    /** Milliardièmes de dollar ; peut être négatif. */
+    amount: bigint("amount", { mode: "bigint" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [unique().on(t.orgId, t.entryKey)]
+)
+
+export type CreditLedgerEntry = typeof creditLedger.$inferSelect
+export type NewCreditLedgerEntry = typeof creditLedger.$inferInsert
