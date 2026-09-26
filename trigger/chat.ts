@@ -1,4 +1,4 @@
-import { chat, upsertIncomingMessage } from "@trigger.dev/sdk/ai"
+import { chat } from "@trigger.dev/sdk/ai"
 import { createIdGenerator, isToolUIPart, stepCountIs } from "ai"
 import { z } from "zod"
 
@@ -11,10 +11,10 @@ import {
 } from "../lib/games/model-catalog"
 import { gameTools } from "../lib/games/tools"
 import {
+  gameTranscriptStorage,
   loadGameMessages,
   loadGameOrgId,
-  saveGameMessages,
-  saveGameTurn,
+  saveGameAccessToken,
 } from "./chat-store"
 import { assertOrgHasCredits } from "./credits"
 
@@ -36,41 +36,36 @@ export const gameChat = chat.agent({
     model: z.enum(GAME_MODEL_IDS).optional(),
   }),
 
-  // La base reste la source de vérité du fil : on la relit à chaque tour et
-  // on ignore la copie du client, sauf le nouveau message utilisateur.
-  hydrateMessages: async ({ chatId, trigger, incomingMessages }) => {
+  // La base reste la source de vérité du fil ; le runtime la lit une fois au
+  // démarrage du run et la tient à jour via `save` (voir `chat-store.ts`).
+  storage: gameTranscriptStorage,
+
+  // Le modèle ne répond qu'à un message utilisateur : un message `assistant`
+  // forgé côté client ne doit pas entrer dans le fil. Seule exception, la
+  // réponse à `ask_player` : le fil se termine alors par le message assistant
+  // dont l'appel attend son résultat, et le message entrant renvoyé par
+  // `addToolOutput` n'est qu'une version « slim » de ce même message (state +
+  // output, sans le reste des parts — voir l'avertissement HITL de la doc
+  // `ai-chat/lifecycle-hooks`).
+  onValidateMessages: async ({ chatId, messages, trigger }) => {
+    if (trigger !== "submit-message") return messages
+
     const stored = await loadGameMessages(chatId)
-
-    // Sans effet si le message est déjà stocké (le prompt posé par
-    // `createGame`, renvoyé par `sendMessage()` à l'ouverture de la partie).
-    if (upsertIncomingMessage(stored, { trigger, incomingMessages })) {
-      await saveGameMessages(chatId, stored)
-    }
-
-    // Le modèle ne répond qu'à un message utilisateur : un message
-    // `assistant` forgé côté client ne doit pas entrer dans le fil. Seule
-    // exception, la réponse à `ask_player` : le fil se termine alors par le
-    // message assistant dont l'appel attend son résultat (le runtime n'y
-    // superpose que l'avancée de l'état de l'outil, rien d'autre).
     const last = stored.at(-1)
     const answersQuestion =
       last?.role === "assistant" &&
       last.parts.some(
         (part) => isToolUIPart(part) && part.state === "input-available"
       ) &&
-      incomingMessages.some(
+      messages.some(
         (message) => message.role === "assistant" && message.id === last.id
       )
 
-    if (
-      trigger === "submit-message" &&
-      last?.role !== "user" &&
-      !answersQuestion
-    ) {
+    if (last?.role !== "user" && !answersQuestion) {
       throw new Error("Invalid message")
     }
 
-    return stored
+    return messages
   },
 
   // Une fois par partie, au premier message : la sandbox vit autant qu'elle.
@@ -95,16 +90,11 @@ export const gameChat = chat.agent({
     writer.write({ type: "data-preview-refresh", data: {}, transient: true })
   },
 
-  onTurnComplete: async ({
-    chatId,
-    uiMessages,
-    chatAccessToken,
-    lastEventId,
-  }) => {
-    await saveGameTurn(chatId, uiMessages, {
-      publicAccessToken: chatAccessToken,
-      lastEventId,
-    })
+  // Le fil et le curseur de reprise sont maintenant à la charge de `storage`
+  // (`gameTranscriptStorage.save`) ; il ne reste ici que le jeton de session,
+  // que `storage` ne gère pas.
+  onTurnComplete: async ({ chatId, chatAccessToken }) => {
+    await saveGameAccessToken(chatId, chatAccessToken)
   },
 
   uiMessageStreamOptions: {

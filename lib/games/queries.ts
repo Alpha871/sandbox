@@ -105,8 +105,8 @@ export async function deleteGame(id: string): Promise<Game | null> {
 
 /**
  * Enregistre la session Trigger.dev d'une partie qui n'en a pas encore. Sans
- * effet si une session existe déjà : l'écraser effacerait son `lastEventId`,
- * le curseur qui évite de rejouer la réponse déjà affichée.
+ * effet si une session existe déjà : `startChatSession` est idempotent sur
+ * (environnement, chatId), un second appel ne doit pas réémettre le jeton.
  */
 export async function initGameChatSession({
   id,

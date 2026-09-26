@@ -286,7 +286,17 @@ export function ChatThread({ game, onTurnComplete }: ChatThreadProps) {
     accessToken: ({ chatId }) => mintChatAccessToken(chatId),
     startSession: ({ chatId, clientData }) =>
       startChatSession({ chatId, clientData }),
-    sessions: game.chatSession ? { [game.id]: game.chatSession } : undefined,
+    // Le jeton (`chatSession`) et le curseur de reprise (`chatCursors`) sont
+    // écrits séparément côté worker (`onTurnComplete` vs `gameTranscriptStorage.
+    // save`, voir `trigger/chat.ts`) : on les recompose ici pour le transport.
+    sessions: game.chatSession
+      ? {
+          [game.id]: {
+            publicAccessToken: game.chatSession.publicAccessToken,
+            lastEventId: game.chatCursors?.lastOutEventId,
+          },
+        }
+      : undefined,
     clientData: { model: modelId },
   })
 

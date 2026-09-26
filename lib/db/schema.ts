@@ -11,14 +11,23 @@ import {
 } from "drizzle-orm/pg-core"
 
 /**
- * État de la session Trigger.dev du chat, tel que le transport le restaure :
- * jeton d'accès de la session et curseur de reprise du flux. Écrit avec
- * `messages` dans la même requête, sinon un rechargement reprendrait depuis
- * un curseur périmé et afficherait la réponse deux fois.
+ * Jeton de session Trigger.dev du chat, tel que le transport le restaure au
+ * chargement de la page. Le curseur de reprise du flux vit à part, dans
+ * `GameChatCursors` : c'est `TranscriptStorage.save` qui l'écrit à chaque
+ * tour, pas le code qui gère ce jeton.
  */
 export type GameChatSession = {
   publicAccessToken: string
-  lastEventId?: string
+}
+
+/**
+ * Curseurs de reprise du flux Trigger.dev de la partie, écrits par
+ * `gameTranscriptStorage.save` (voir `trigger/chat-store.ts`). Opaques : rien
+ * ici ne les interprète, ils sont juste rendus au runtime au tour suivant.
+ */
+export type GameChatCursors = {
+  lastOutEventId?: string
+  lastInEventId?: string
 }
 
 export const games = pgTable(
@@ -32,6 +41,14 @@ export const games = pgTable(
     messages: jsonb("messages").$type<UIMessage[]>().notNull().default([]),
     /** Session Trigger.dev du chat ; `null` tant que le chat n'a pas démarré. */
     chatSession: jsonb("chat_session").$type<GameChatSession>(),
+    /**
+     * État opaque de la transcript storage (résumé de compaction, contexte
+     * injecté) ; `null` tant que rien n'a été enregistré. Voir
+     * `gameTranscriptStorage` dans `trigger/chat-store.ts`.
+     */
+    chatState: jsonb("chat_state"),
+    /** Curseurs de reprise du flux Trigger.dev ; `null` avant le premier tour. */
+    chatCursors: jsonb("chat_cursors").$type<GameChatCursors>(),
     /** Sandbox Daytona de la partie ; `null` tant qu'elle n'est pas créée. */
     sandboxId: text("sandbox_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
